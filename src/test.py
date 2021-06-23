@@ -9,20 +9,16 @@ import datetime
 
 def apr3read(filename):
     """
-    ===========
-
-    This is for reading in apr3 hdf (HDF5 updated 2/21/18) files from OLYMPEX and return them all in one dictionary
-
-    ===========
-
-    filename = filename of the apr3 file
+    Function used for reading apr3 hdf file from CAMP2EX file using Randy's code
+    (https://github.com/dopplerchase/Chase_et_al_2018/blob/master/apr3tocit_tools.py)
+    :param filename: path and filename of the APR3 HDF file
+    :return: dictionary with apr3 data
     """
-    flag = 0
     hdf = h5py.File(filename, "r")
     desired_data = ['alt3D', 'lat', 'lon', 'scantime', 'surface_index', 'isurf', 'alt_nav', 'zhh14', 'zhh35', 'ldrhh14',
                     'vel14', 'lon3D', 'lat3D', 'alt3D', 'z95n', 'roll', 'pitch', 'drift', 'z95s', 'z95n']
     apr = {i: hdf['lores'][i][:] for i in hdf['lores'].keys() if i in desired_data}
-
+    flag = 0
     # Not completely sure about this if statement
     if 'z95s' in apr.keys():
         if 'z95n' in apr.keys():
@@ -107,8 +103,6 @@ def main():
         lat.append(ds['lat'][:][0])
         lon.append(ds['lon'][:][0])
         # alt.append(ds['alt3D'][:])
-    # dt_info = {i['results'][0]['name'].split('.')[1]: pd.DataFrame(i['results'][0]['values']) for i in queries if
-    #            i['sample_size'] != 0}
 
     lat = np.concatenate(lat).ravel()
     lon = np.concatenate(lon).ravel()
@@ -117,10 +111,6 @@ def main():
     # time = utils([files[-2]])
     # plt.title(f'{time}')
     plt.show()
-    # elevation = ds['elevation'][:]
-    # ncf = Dataset(file, diskless=True, persist=False)
-    # nch = ncf.groups.get('hdf5-name')
-    # xds = xr.open_dataset(xr.backends.NetCDF4DataStore(nch))
     print(1)
 
 
