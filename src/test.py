@@ -17,44 +17,16 @@ def apr3read(filename):
 
     filename = filename of the apr3 file
     """
-
-    apr = {}
     flag = 0
-
-    # Radar varibles in hdf file found by hdf.datasets
-    radar_freq = 'zhh14'  # Ku
-    radar_freq2 = 'zhh35'  # Ka
-    radar_freq3 = 'z95s'  # W
-    radar_freq4 = 'ldrhh14'  # LDR
-    vel_str = 'vel14'  # Doppler
-    ##
-
     hdf = h5py.File(filename, "r")
+    desired_data = ['alt3D', 'lat', 'lon', 'scantime', 'surface_index', 'isurf', 'alt_nav', 'zhh14', 'zhh35', 'ldrhh14',
+                    'vel14', 'lon3D', 'lat3D', 'alt3D', 'z95n', 'roll', 'pitch', 'drift', 'z95s', 'z95n']
+    apr = {i: hdf['lores'][i][:] for i in hdf['lores'].keys() if i in desired_data}
 
-    listofkeys = hdf['lores'].keys()
-    alt = hdf['lores']['alt3D'][:]
-    lat = hdf['lores']['lat'][:]
-    lon = hdf['lores']['lon'][:]
-    time = hdf['lores']['scantime'][:]
-    surf = hdf['lores']['surface_index'][:]
-    isurf = hdf['lores']['isurf'][:]
-    plane = hdf['lores']['alt_nav'][:]
-    radar = hdf['lores'][radar_freq][:]
-    radar2 = hdf['lores'][radar_freq2][:]
-    radar4 = hdf['lores'][radar_freq4][:]
-    vel = hdf['lores']['vel14'][:]
-    lon3d = hdf['lores']['lon3D'][:]
-    lat3d = hdf['lores']['lat3D'][:]
-    alt3d = hdf['lores']['alt3D'][:]
-
-    # see if there is W band
-    if radar_freq3 in listofkeys:
-        if 'z95n' in listofkeys:
-            radar_nadir = hdf['lores']['z95n']
-            radar_scanning = hdf['lores'][radar_freq3]
-            radar3 = radar_scanning
-            # uncomment if you want high sensativty as nadir scan (WARNING, CALIBRATION)
-            # radar3[:,12,:] = radar_nadir[:,12,:]
+    # Not completely sure about this if statement
+    if 'z95s' in apr.keys():
+        if 'z95n' in apr.keys():
+            radar3 = hdf['lores']['z95s']
         else:
             radar3 = hdf['lores']['z95s']
             print('No vv, using hh')
@@ -62,67 +34,36 @@ def apr3read(filename):
         radar3 = np.ma.array([])
         flag = 1
         print('No W band')
-
     # convert time to datetimes
-    time_dates = np.asarray([[datetime.datetime.utcfromtimestamp(time[i, j])
-                             for j in range(time.shape[1])] for i in range(time.shape[0])])
+    time_dates = np.asarray([[datetime.datetime.utcfromtimestamp(hdf['lores']['scantime'][:][i, j])
+                             for j in range(hdf['lores']['scantime'][:].shape[1])]
+                             for i in range(hdf['lores']['scantime'][:].shape[0])])
     # Create a time at each gate (assuming it is the same down each ray, there is a better way to do this)
     time_gate = np.asarray([[[time_dates[i, j] for j in range(time_dates.shape[1])]
-                            for i in range(time_dates.shape[0])] for k in range(lat3d.shape[0])])
+                            for i in range(time_dates.shape[0])] for k in range(hdf['lores']['lat3D'][:].shape[0])])
     # Quality control (masked where invalid)
-    radar = np.ma.masked_where(radar <= -99, radar)
-    radar2 = np.ma.masked_where(radar2 <= -99, radar2)
-    radar3 = np.ma.masked_where(radar3 <= -99, radar3)
-    radar4 = np.ma.masked_where(radar4 <= -99, radar4)
+    radars = {'zhh14': 'Ku', 'zhh35': 'Ka', 'z95s': 'W', 'ldrhh14': 'ldr', 'z95n': 'Nadir'}
+    for i in radars.keys():
+        if i in apr.keys():
+            apr[i] = np.ma.masked_where((apr[i] <= -99) | (np.isnan(apr[i])), apr[i])
+            apr[radars[i]] = apr.pop(i)
 
-    # Get rid of nans, the new HDF has builtin
-    radar = np.ma.masked_where(np.isnan(radar), radar)
-    radar2 = np.ma.masked_where(np.isnan(radar2), radar2)
-    radar3 = np.ma.masked_where(np.isnan(radar3), radar3)
-    radar4 = np.ma.masked_where(np.isnan(radar4), radar4)
-
-    apr['Ku'] = radar
-    apr['Ka'] = radar2
-    apr['W'] = radar3
-    apr['DFR_1'] = radar - radar2  # Ku - Ka
+    apr['DFR_1'] = apr['Ku'] - apr['Ka']  # Ku - Ka
 
     if flag == 0:
-        apr['DFR_3'] = radar2 - radar3  # Ka - W
-        apr['DFR_2'] = radar - radar3  # Ku - W
+        apr['DFR_3'] = apr['Ka'] - apr['W']  # Ka - W
+        apr['DFR_2'] = apr['Ku'] - apr['W']  # Ku - W
         apr['info'] = 'The shape of these arrays are: Radar[Vertical gates,Time/DistanceForward]'
     else:
         apr['DFR_3'] = np.array([])  # Ka - W
         apr['DFR_2'] = np.array([])  # Ku - W
         apr['info'] = 'The shape of these arrays are: Radar[Vertical gates,Time/DistanceForward], Note No W band avail'
 
-    apr['ldr'] = radar4
-    apr['vel'] = vel
-    apr['lon'] = lon
-    apr['lat'] = lat
-    apr['alt_gate'] = alt3d
-    apr['alt_plane'] = plane
-    apr['surface'] = isurf
-    apr['time'] = time
-    apr['timedates'] = time_dates
-    apr['time_gate'] = time_gate
-    apr['lon_gate'] = lon3d
-    apr['lat_gate'] = lat3d
+    apr['ngates'] = apr['alt3D'].shape[0]
 
-    # fileheader = hdf.select('fileheader')
-    roll = hdf['lores']['roll']
-    pitch = hdf['lores']['pitch']
-    drift = hdf['lores']['drift']
-
-    ngates = alt.shape[0]
-
-    apr['ngates'] = ngates
-    apr['roll'] = roll
-    apr['pitch'] = pitch
-    apr['drift'] = drift
-
-    _range = np.arange(15, lat3d.shape[0] * 30, 30)
+    _range = np.arange(15, apr['lat3D'].shape[0] * 30, 30)
     _range = np.asarray(_range, float)
-    ind = np.where(_range >= plane.mean())
+    ind = np.where(_range >= apr['alt_nav'].mean())
     _range[ind] = np.nan
     apr['range'] = _range
 
@@ -143,7 +84,8 @@ def plane_loc(lat, lon, alt=None):
                       linewidth=2)
     if alt:
         plt.pcolormesh(lon, lat, alt, transform=ccrs.PlateCarree())
-    plt.show()
+    return fig, ax
+    # plt.show()
 
 
 def utils(file_obj):
@@ -171,7 +113,10 @@ def main():
     lat = np.concatenate(lat).ravel()
     lon = np.concatenate(lon).ravel()
     # alt = np.concatenate(alt).ravel()
-    plane_loc(lat=lat, lon=lon) #, alt=alt)
+    fig, ax = plane_loc(lat=lat, lon=lon)
+    # time = utils([files[-2]])
+    # plt.title(f'{time}')
+    plt.show()
     # elevation = ds['elevation'][:]
     # ncf = Dataset(file, diskless=True, persist=False)
     # nch = ncf.groups.get('hdf5-name')
