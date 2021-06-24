@@ -5,6 +5,7 @@ import shapely.geometry as sgeom
 import glob
 import numpy as np
 import datetime
+import xarray as xr
 
 
 def apr3read(filename):
@@ -15,10 +16,12 @@ def apr3read(filename):
     :return: dictionary with apr3 data
     """
     hdf = h5py.File(filename, "r")
-    desired_data = ['alt3D', 'lat', 'lon', 'scantime', 'surface_index', 'isurf', 'alt_nav', 'zhh14', 'zhh35', 'ldrhh14',
-                    'vel14', 'lon3D', 'lat3D', 'alt3D', 'z95n', 'roll', 'pitch', 'drift', 'z95s', 'z95n']
+    desired_data = ['alt3D', 'lat', 'lon', 'scantime', 'surface_index', 'isurf', 'alt_nav', 'zhh14', 'zhh35', 'zhh95',
+                    'ldrhh14', 'vel14', 'lon3D', 'lat3D', 'alt3D', 'z95n', 'roll', 'pitch', 'drift', 'z95s', 'z95n']
     apr = {i: hdf['lores'][i][:] for i in hdf['lores'].keys() if i in desired_data}
+
     flag = 0
+
     # Not completely sure about this if statement
     if 'z95s' in apr.keys():
         if 'z95n' in apr.keys():
@@ -30,6 +33,7 @@ def apr3read(filename):
         radar3 = np.ma.array([])
         flag = 1
         print('No W band')
+
     # convert time to datetimes
     time_dates = np.asarray([[datetime.datetime.utcfromtimestamp(hdf['lores']['scantime'][:][i, j])
                              for j in range(hdf['lores']['scantime'][:].shape[1])]
@@ -37,14 +41,25 @@ def apr3read(filename):
     # Create a time at each gate (assuming it is the same down each ray, there is a better way to do this)
     time_gate = np.asarray([[[time_dates[i, j] for j in range(time_dates.shape[1])]
                             for i in range(time_dates.shape[0])] for k in range(hdf['lores']['lat3D'][:].shape[0])])
+
     # Quality control (masked where invalid)
-    radars = {'zhh14': 'Ku', 'zhh35': 'Ka', 'z95s': 'W', 'ldrhh14': 'ldr', 'z95n': 'Nadir'}
+    radars = {'zhh14': {'name': 'Ku', 'title': 'Ku-band Reflectivity'},
+              'zhh35': {'name': 'Ka', 'title': 'Ka-band Reflectivity'},
+              'zhh95': {'name': 'W', 'title': 'W-band Reflectivity'},
+              'ldrhh14': {'name': 'ldr', 'title': 'LDR at Ku-band '},
+              'z95n': {'name': 'nadir', 'title': 'Nadir '},
+              'vel14': {'name': 'vel', 'title': 'Ku-band Doppler Vel'}}#,
+              # 'roll': {'name': 'roll', 'title': 'Left/Right Plane Roll'}}
+              # 'isurf': {'name': 'isurf', 'title': 'index of best guess for location of surface'}}
+
     for i in radars.keys():
         if i in apr.keys():
             apr[i] = np.ma.masked_where((apr[i] <= -99) | (np.isnan(apr[i])), apr[i])
-            apr[radars[i]] = apr.pop(i)
+            apr[radars[i]['name']] = apr.pop(i)
 
     apr['DFR_1'] = apr['Ku'] - apr['Ka']  # Ku - Ka
+    apr['time_gates'] = time_gate
+    apr['time_dates'] = time_dates
 
     if flag == 0:
         apr['DFR_3'] = apr['Ka'] - apr['W']  # Ka - W
@@ -62,8 +77,25 @@ def apr3read(filename):
     ind = np.where(_range >= apr['alt_nav'].mean())
     _range[ind] = np.nan
     apr['range'] = _range
-
-    return apr
+    ds = xr.Dataset()
+    for key, value in radars.items():
+        if value['name'] in apr.keys():
+            da = xr.DataArray(apr[value['name']],
+                              dims={
+                                  'range': np.arange(0, 550),
+                                  'cross_track': np.arange(0, 24),
+                                  'along_track': np.arange(apr[value['name']].shape[2])
+                              },
+                              coords={
+                                  'lon3d': (['range', 'cross_track', 'along_track'], apr['lon3D']),
+                                  'lat3d': (['range', 'cross_track', 'along_track'], apr['lat3D']),
+                                  'time3d': (['range', 'cross_track', 'along_track'], apr['time_gates']),
+                                  'alt3d': (['range', 'cross_track', 'along_track'], apr['alt3D'])})
+            da.fillna(value=-9999)
+            da.attrs['units'] = 'dBZ'
+            da.attrs['standard_name'] = f"{value['title']}"
+            ds[value['name']] = da
+    return ds
 
 
 def plane_loc(lat, lon, alt=None):
@@ -78,6 +110,8 @@ def plane_loc(lat, lon, alt=None):
                       facecolor='none',
                       edgecolor='red',
                       linewidth=2)
+    ax.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                 linewidth=2, color='gray', alpha=0.5, linestyle='--')
     if alt:
         plt.pcolormesh(lon, lat, alt, transform=ccrs.PlateCarree())
     return fig, ax
@@ -96,7 +130,11 @@ def main():
     lat = []
     lon = []
     alt = []
-    apr = apr3read(files[0])
+    apr = apr3read(files[-2])
+    plt.pcolormesh(apr.time3d[:, 12, :], apr.alt3d[:, 12, :], apr.Ku[:, 12, :],
+                   vmin=0, vmax=40)
+    plt.colorbar()
+    plt.show()
     for file in files[-2:]:
         f = h5py.File(file, 'r')
         ds = f['hires']
@@ -110,6 +148,7 @@ def main():
     fig, ax = plane_loc(lat=lat, lon=lon)
     # time = utils([files[-2]])
     # plt.title(f'{time}')
+    plt.savefig('../results/track.png')
     plt.show()
     print(1)
 

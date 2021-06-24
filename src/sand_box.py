@@ -1,10 +1,7 @@
 import h5py
-import cartopy.crs as ccrs
 import matplotlib.pyplot as plt
-import shapely.geometry as sgeom
 import glob
 from pyart.graph import cm
-import numpy as np
 import datetime
 
 
@@ -18,12 +15,14 @@ def main():
     files = glob.glob(f'{path_file}/*Wn.h5')
     files.sort()
     hdf_ds = h5py.File(files[-2], 'r')
-    lores = hdf_ds['lores']['vel14'][:]
+    lores = hdf_ds['lores']['zhh35'][:]
     for i in range(lores.shape[0]):
         plt.close('all')
-        fig, ax = plt.subplots()
-        ax.pcolor(lores[i, :, :], cmap=cm.NWSRef)
-        plt.savefig(f'../results/Ku/vel/lores_vel_ku_{i}')
+        fig, ax = plt.subplots(figsize=(15, 4))
+        a = ax.imshow(lores[i, :, :], cmap='pyart_NWSRef', vmin=-10, vmax=35)
+        ax.set_aspect(2)
+        fig.colorbar(a, ax=ax, orientation='horizontal')
+        plt.savefig(f'../results/Ka/ref/lores_ref_ka_{i}')
 
 
 if __name__ == '__main__':
