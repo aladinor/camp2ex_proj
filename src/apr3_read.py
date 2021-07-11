@@ -32,9 +32,10 @@ def hdf2xr(h5_path):
     groups = [i[0] for i in h5f.items()]
     members = {i: [j[0] for j in h5f.get(i).items()] for i in groups}
     ds_res = {}
-    for group in groups[3:4]:
+    for group in groups:
         ds = xr.Dataset()
         for key in members[group]:
+            print(group, key)
             if h5f[group][key].size == 1:
                 attr_dict = {'data': h5f[group][key][:][0],
                              'units': dt_params[group][key]['units'],
@@ -75,6 +76,7 @@ def hdf2xr(h5_path):
                                       attrs=attr_dict)
                     ds[key] = da
         ds_res[group] = ds
+    del h5f
     return ds_res
 
 

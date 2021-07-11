@@ -29,7 +29,7 @@ def get_pars_from_ini(file_name='../config/camp2ex.ini'):
 
     groups = parser.sections()
 
-    for group in groups[3:4]:
+    for group in groups:
         db = {}
         params = parser.items(group)
 
