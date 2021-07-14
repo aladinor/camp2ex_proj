@@ -21,21 +21,22 @@ def get_time(time_array, numbers):
     return time_3d
 
 
-def hdf2xr(h5_path):
+def hdf2xr(h5_path, groups=None):
     """
     Function that converts CAMP2EX files (hdf5 files) to xarray datasets
+    :param groups: list of Dataset to retrieve e.g. ['lores', 'hires']. If None, all groups will be retrieved.
     :param h5_path: full path to the hdf5 file
     :return: a dictionary with groups a key and datasets as values
     """
     dt_params = get_pars_from_ini()
     h5f = h5py.File(h5_path, mode='r')
-    groups = [i[0] for i in h5f.items()]
+    if not groups:
+        groups = [i[0] for i in h5f.items()]
     members = {i: [j[0] for j in h5f.get(i).items()] for i in groups}
     ds_res = {}
     for group in groups:
         ds = xr.Dataset()
         for key in members[group]:
-            print(group, key)
             if h5f[group][key].size == 1:
                 attr_dict = {'data': h5f[group][key][:][0],
                              'units': dt_params[group][key]['units'],
