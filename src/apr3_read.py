@@ -49,7 +49,10 @@ def hdf2xr(h5_path, groups=None):
                                   dims={'cross_track': np.arange(h5f[group][key].shape[0]),
                                         'along_track': np.arange(h5f[group][key].shape[1])},
                                   attrs=attr_dict)
-                ds[key] = da
+                if key == 'roll':
+                    ds['roll_'] = da
+                else:
+                    ds[key] = da
 
             elif h5f[group][key].ndim == 3:
                 try:
