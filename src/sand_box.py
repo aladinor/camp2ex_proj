@@ -69,7 +69,7 @@ def main():
     azimt = xr.concat(azimt, dim='along_track')
     time3d = xr.concat(time3d, dim='along_track')
     plot_multi_panel(lon=lon, lat=lat, dbz=dbz, alt3d=alt3d, rang=rang, azimt=azimt, time3d=time3d)
-    print('Done. good job!')
+    # print('Done. good job!')
 
 
 if __name__ == '__main__':
