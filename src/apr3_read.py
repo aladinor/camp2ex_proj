@@ -69,16 +69,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
 
 
 def main():
-    import time
-    now = time.time()
-    path_file = '../data'
-    files = glob.glob(f'{path_file}/*Wn.h5')
-    files.sort()
-    for i, file in enumerate(files):
-        ds = hdf2xr(file, groups=['lores'])
-        ds['lores'].to_zarr(store=f'/home/alfonso/Documents/camp2ex_proj/zarr/apr3.zarr', mode='a',
-                            append_dim='along_track')
-    print(time.time() - now)
+    pass
 
 
 if __name__ == '__main__':
