@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import glob
 import h5py
 import xarray as xr
 import numpy as np
@@ -21,48 +20,66 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
     members = {i: [j[0] for j in h5f.get(i).items()] for i in groups}
     ds_res = {}
     for group in groups:
+        diff = [i for i in members[group] + list(dt_params[group].keys())
+                if i not in members[group] or i not in list(dt_params[group].keys())]
+        members[group] = members[group] + diff
         ds = xr.Dataset()
         for key in members[group]:
-            if h5f[group][key].size == 1:
-                attr_dict = {'units': dt_params[group][key]['units'],
-                             'notes': dt_params[group][key]['notes']}
-                ds[key] = xr.DataArray(h5f[group][key][:][0],
-                                       attrs=attr_dict)
-            elif h5f[group][key].ndim == 2:
-                attr_dict = {'units': dt_params[group][key]['units'],
-                             'notes': dt_params[group][key]['notes']}
-                da = xr.DataArray(h5f[group][key][:],
-                                  dims={'cross_track': np.arange(h5f[group][key].shape[0]),
-                                        'along_track': np.arange(h5f[group][key].shape[1])},
-                                  attrs=attr_dict)
-                if key == 'roll':
-                    ds['roll_'] = da
-                else:
-                    ds[key] = da
+            try:
+                if h5f[group][key].size == 1:
+                    attr_dict = {'units': dt_params[group][key]['units'],
+                                 'notes': dt_params[group][key]['notes']}
+                    ds[key] = xr.DataArray(h5f[group][key][:][0],
+                                           attrs=attr_dict)
+                elif h5f[group][key].ndim == 2:
+                    attr_dict = {'units': dt_params[group][key]['units'],
+                                 'notes': dt_params[group][key]['notes']}
+                    da = xr.DataArray(h5f[group][key][:],
+                                      dims={'cross_track': np.arange(h5f[group][key].shape[0]),
+                                            'along_track': np.arange(h5f[group][key].shape[1])},
+                                      attrs=attr_dict)
+                    if key == 'roll':
+                        ds['roll_'] = da
+                    else:
+                        ds[key] = da
 
-            elif h5f[group][key].ndim == 3:
-                try:
-                    attr_dict = {'units': dt_params[group][key]['units'],
-                                 'notes': dt_params[group][key]['notes']}
-                    da = xr.DataArray(h5f[group][key][:],
-                                      dims={'range': np.arange(h5f[group][key].shape[0]),
-                                            'cross_track': np.arange(h5f[group][key].shape[1]),
-                                            'along_track': np.arange(h5f[group][key].shape[2])},
-                                      coords={
-                                          'lon3d': (['range', 'cross_track', 'along_track'], h5f[group]['lon3D'][:]),
-                                          'lat3d': (['range', 'cross_track', 'along_track'], h5f[group]['lat3D'][:]),
-                                          'alt3d': (['range', 'cross_track', 'along_track'], h5f[group]['alt3D'][:])},
-                                      attrs=attr_dict)
-                    ds[key] = da
-                except ValueError:
-                    attr_dict = {'units': dt_params[group][key]['units'],
-                                 'notes': dt_params[group][key]['notes']}
-                    da = xr.DataArray(h5f[group][key][:],
-                                      dims={'vector': np.arange(h5f[group][key].shape[0]),
-                                            'cross_track': np.arange(h5f[group][key].shape[1]),
-                                            'along_track': np.arange(h5f[group][key].shape[2])},
-                                      attrs=attr_dict)
-                    ds[key] = da
+                elif h5f[group][key].ndim == 3:
+                    try:
+                        attr_dict = {'units': dt_params[group][key]['units'],
+                                     'notes': dt_params[group][key]['notes']}
+                        da = xr.DataArray(h5f[group][key][:],
+                                          dims={'range': np.arange(h5f[group][key].shape[0]),
+                                                'cross_track': np.arange(h5f[group][key].shape[1]),
+                                                'along_track': np.arange(h5f[group][key].shape[2])},
+                                          coords={
+                                              'lon3d': (['range', 'cross_track', 'along_track'], h5f[group]['lon3D'][:]),
+                                              'lat3d': (['range', 'cross_track', 'along_track'], h5f[group]['lat3D'][:]),
+                                              'alt3d': (['range', 'cross_track', 'along_track'], h5f[group]['alt3D'][:])},
+                                          attrs=attr_dict)
+                        ds[key] = da
+                        flag = key
+                    except ValueError:
+                        attr_dict = {'units': dt_params[group][key]['units'],
+                                     'notes': dt_params[group][key]['notes']}
+                        da = xr.DataArray(h5f[group][key][:],
+                                          dims={'vector': np.arange(h5f[group][key].shape[0]),
+                                                'cross_track': np.arange(h5f[group][key].shape[1]),
+                                                'along_track': np.arange(h5f[group][key].shape[2])},
+                                          attrs=attr_dict)
+                        ds[key] = da
+            except KeyError:
+                attr_dict = {'units': dt_params[group][key]['units'],
+                             'notes': dt_params[group][key]['notes']}
+                da = xr.DataArray(np.full_like(h5f[group][flag][:], np.nan),
+                                  dims={'range': np.arange(h5f[group][flag].shape[0]),
+                                        'cross_track': np.arange(h5f[group][flag].shape[1]),
+                                        'along_track': np.arange(h5f[group][flag].shape[2])},
+                                  coords={
+                                      'lon3d': (['range', 'cross_track', 'along_track'], h5f[group]['lon3D'][:]),
+                                      'lat3d': (['range', 'cross_track', 'along_track'], h5f[group]['lat3D'][:]),
+                                      'alt3d': (['range', 'cross_track', 'along_track'], h5f[group]['alt3D'][:])},
+                                  attrs=attr_dict)
+                ds[key] = da
         ds_res[group] = ds
     del h5f
     return ds_res
