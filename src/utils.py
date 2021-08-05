@@ -1,7 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import os
+import numpy as np
 from configparser import ConfigParser
+from datetime import datetime
+import numba as nb
 
 
 def make_dir(path):
@@ -49,6 +52,19 @@ def get_pars_from_ini(file_name='../config/camp2ex.ini'):
         dt_pars[group] = db
 
     return dt_pars
+
+
+def get_time(time_array, numbers):
+    """
+    Functions that creates a 3d time array from timestamps
+    :param time_array: 2d timestamp array
+    :param numbers: number of times in the new axis
+    :return: 3d time array
+    """
+    v_func = np.vectorize(lambda x: datetime.fromtimestamp(x))
+    _time = v_func(time_array)
+    time_3d = np.repeat(_time[np.newaxis, :, :], numbers, axis=0)
+    return time_3d
 
 
 if __name__ == '__main__':
