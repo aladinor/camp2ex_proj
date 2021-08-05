@@ -20,8 +20,8 @@ def main():
     pool = mpc.Pool()
     partial_funct = partial(download_data, path=path)
     pool.map(partial_funct, links[10:30])
-    # pool.close()
-    # pool.join()
+    pool.close()
+    pool.join()
 
 
 if __name__ == '__main__':
