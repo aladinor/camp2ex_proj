@@ -19,7 +19,7 @@ def main():
     path = '/media/alfonso/drive/Alfonso/camp2ex_proj/data'
     pool = mpc.Pool()
     partial_funct = partial(download_data, path=path)
-    pool.map(partial_funct, links[10:30])
+    pool.map(partial_funct, links)
     pool.close()
     pool.join()
 
