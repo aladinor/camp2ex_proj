@@ -8,8 +8,8 @@ from sand_box import plot_multi_panel
 from utils import get_time
 
 
-def data_test():
-    ds_xr = xr.open_zarr('/home/alfonso/Documents/camp2ex_proj/zarr/apr3.zarr', )
+def data_test(path_file):
+    ds_xr = xr.open_zarr(f'{path_file}/zarr/apr3.zarr', consolidated=True)
 
     time3d = get_time(time_array=ds_xr.scantime.dropna(dim='along_track', how='any').values,
                       numbers=ds_xr.zhh14.shape[0])
@@ -51,7 +51,7 @@ def hdf2zar(path_file):
 def main():
     path_file = '/media/alfonso/drive/Alfonso/camp2ex_proj'
     hdf2zar(path_file)
-    # data_test()
+    # data_test(path_file)
 
 
 if __name__ == '__main__':
