@@ -27,11 +27,12 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
         for key in members[group]:
             try:
                 if h5f[group][key].size == 1:
-                    attr_dict = {'data': h5f[group][key][:][0][0],
-                                 'units': dt_params[group][key]['units'],
+                    attr_dict = {'units': dt_params[group][key]['units'],
                                  'notes': dt_params[group][key]['notes']}
-                    ds.attrs[key] = attr_dict
-
+                    da = xr.DataArray(h5f[group][key][:][0],
+                                      dims=['bin_size'],
+                                      attrs=attr_dict)
+                    ds[key] = da
                 elif h5f[group][key].ndim == 2:
                     attr_dict = {'units': dt_params[group][key]['units'],
                                  'notes': dt_params[group][key]['notes']}
