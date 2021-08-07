@@ -3,7 +3,7 @@
 import h5py
 import xarray as xr
 import numpy as np
-from utils import get_pars_from_ini
+from utils import get_pars_from_ini, get_time
 
 
 def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
@@ -38,8 +38,8 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                                  'notes': dt_params[group][key]['notes']}
                     da = xr.DataArray(h5f[group][key][:],
                                       coords={'cross_track': np.arange(h5f[group][key].shape[0]),
-                                              'along_track': np.arange(h5f[group][key].shape[1])},
-                                      dims=['cross_track', 'along_track'],
+                                              'time': get_time(h5f[group]['scantime'][12, :])},
+                                      dims=['cross_track', 'time'],
                                       attrs=attr_dict)
                     if key == 'roll':
                         ds['roll_'] = da
@@ -53,11 +53,11 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                         da = xr.DataArray(h5f[group][key][:],
                                           dims={'range': np.arange(h5f[group][key].shape[0]),
                                                 'cross_track': np.arange(h5f[group][key].shape[1]),
-                                                'along_track': np.arange(h5f[group][key].shape[2])},
+                                                'time': get_time(h5f[group]['scantime'][12, :])},
                                           coords={
-                                              'lon3d': (['range', 'cross_track', 'along_track'], h5f[group]['lon3D'][:]),
-                                              'lat3d': (['range', 'cross_track', 'along_track'], h5f[group]['lat3D'][:]),
-                                              'alt3d': (['range', 'cross_track', 'along_track'], h5f[group]['alt3D'][:])},
+                                              'lon3d': (['range', 'cross_track', 'time'], h5f[group]['lon3D'][:]),
+                                              'lat3d': (['range', 'cross_track', 'time'], h5f[group]['lat3D'][:]),
+                                              'alt3d': (['range', 'cross_track', 'time'], h5f[group]['alt3D'][:])},
                                           attrs=attr_dict)
                         ds[key] = da
                         flag = key
@@ -67,7 +67,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                         da = xr.DataArray(h5f[group][key][:],
                                           dims={'vector': np.arange(h5f[group][key].shape[0]),
                                                 'cross_track': np.arange(h5f[group][key].shape[1]),
-                                                'along_track': np.arange(h5f[group][key].shape[2])},
+                                                'time': get_time(h5f[group]['scantime'][12, :])},
                                           attrs=attr_dict)
                         ds[key] = da
             except KeyError:
@@ -76,11 +76,11 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                 da = xr.DataArray(np.full_like(h5f[group][flag][:], np.nan),
                                   dims={'range': np.arange(h5f[group][flag].shape[0]),
                                         'cross_track': np.arange(h5f[group][flag].shape[1]),
-                                        'along_track': np.arange(h5f[group][flag].shape[2])},
+                                        'time': get_time(h5f[group]['scantime'][12, :])},
                                   coords={
-                                      'lon3d': (['range', 'cross_track', 'along_track'], h5f[group]['lon3D'][:]),
-                                      'lat3d': (['range', 'cross_track', 'along_track'], h5f[group]['lat3D'][:]),
-                                      'alt3d': (['range', 'cross_track', 'along_track'], h5f[group]['alt3D'][:])},
+                                      'lon3d': (['range', 'cross_track', 'time'], h5f[group]['lon3D'][:]),
+                                      'lat3d': (['range', 'cross_track', 'time'], h5f[group]['lat3D'][:]),
+                                      'alt3d': (['range', 'cross_track', 'time'], h5f[group]['alt3D'][:])},
                                   attrs=attr_dict)
                 ds[key] = da
         ds_res[group] = ds
