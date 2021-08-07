@@ -5,14 +5,13 @@ import time
 from apr3_read import hdf2xr
 import xarray as xr
 from sand_box import plot_multi_panel
-from utils import get_time
+from utils import time_3d
 
 
 def data_test(path_file):
-    ds_xr = xr.open_zarr(f'{path_file}/zarr/apr3.zarr', consolidated=True)
-
-    time3d = get_time(time_array=ds_xr.scantime.dropna(dim='along_track', how='any').values,
-                      numbers=ds_xr.zhh14.shape[0])
+    ds_xr = xr.open_zarr(f'{path_file}/zarr/apr3.zarr', consolidated=True, decode_times=True)
+    time3d = time_3d(time_array=ds_xr.scantime.dropna(dim='along_track', how='any').values,
+                     numbers=ds_xr.zhh14.shape[0])
     plot_multi_panel(lon=ds_xr.lon.dropna(dim='along_track', how='all'),
                      lat=ds_xr.lat.dropna(dim='along_track', how='all'),
                      dbz=ds_xr.zhh14.dropna(dim='along_track', how='all'),
@@ -27,6 +26,7 @@ def data_test(path_file):
 def hdf2zar(path_file):
     now = time.time()
     files = glob.glob(f'{path_file}/data/*KUsKAsWn.h5')
+    files.sort()
     with open(f'{path_file}/good_files.txt', 'w') as good,  \
             open(f'{path_file}/bad_files.txt', 'w') as bad:
         for i, file in enumerate(files):
@@ -36,7 +36,7 @@ def hdf2zar(path_file):
                 args['mode'] = 'w'
             else:
                 args['mode'] = 'a'
-                args['append_dim'] = 'along_track'
+                args['append_dim'] = 'time'
             try:
                 ds['lores'].to_zarr(store=f'{path_file}/zarr/apr3.zarr', **args)
                 good.write(f"{file.split('/')[-1]}\n")
@@ -50,8 +50,8 @@ def hdf2zar(path_file):
 
 def main():
     path_file = '/media/alfonso/drive/Alfonso/camp2ex_proj'
-    hdf2zar(path_file)
-    # data_test(path_file)
+    # hdf2zar(path_file)
+    data_test(path_file)
 
 
 if __name__ == '__main__':
