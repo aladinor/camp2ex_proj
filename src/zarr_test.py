@@ -4,22 +4,10 @@ import glob
 import time
 from apr3_read import hdf2xr
 import xarray as xr
-from sand_box import plot_multi_panel
-from utils import time_3d
 
 
 def data_test(path_file):
     ds_xr = xr.open_zarr(f'{path_file}/zarr/apr3.zarr', consolidated=True, decode_times=True)
-    time3d = time_3d(time_array=ds_xr.scantime.dropna(dim='along_track', how='any').values,
-                     numbers=ds_xr.zhh14.shape[0])
-    plot_multi_panel(lon=ds_xr.lon.dropna(dim='along_track', how='all'),
-                     lat=ds_xr.lat.dropna(dim='along_track', how='all'),
-                     dbz=ds_xr.zhh14.dropna(dim='along_track', how='all'),
-                     alt3d=ds_xr.alt3d.dropna(dim='along_track', how='all'),
-                     rang=ds_xr.range,
-                     azimt=ds_xr.azimuth.dropna(dim='along_track', how='all'),
-                     time3d=time3d,
-                     s0hh14=ds_xr.s0hh14.dropna(dim='along_track', how='all'))
     print('Done!')
 
 
@@ -50,8 +38,8 @@ def hdf2zar(path_file):
 
 def main():
     path_file = '/media/alfonso/drive/Alfonso/camp2ex_proj'
-    # hdf2zar(path_file)
-    data_test(path_file)
+    hdf2zar(path_file)
+    # data_test(path_file)
 
 
 if __name__ == '__main__':
