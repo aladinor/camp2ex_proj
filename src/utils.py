@@ -54,7 +54,7 @@ def get_pars_from_ini(file_name='../config/camp2ex.ini'):
     return dt_pars
 
 
-def get_time(time_array, numbers):
+def time_3d(time_array, numbers):
     """
     Functions that creates a 3d time array from timestamps
     :param time_array: 2d timestamp array
@@ -63,8 +63,19 @@ def get_time(time_array, numbers):
     """
     v_func = np.vectorize(lambda x: datetime.fromtimestamp(x))
     _time = v_func(time_array)
-    time_3d = np.repeat(_time[np.newaxis, :, :], numbers, axis=0)
-    return time_3d
+    times = np.repeat(_time[np.newaxis, :], numbers, axis=0)
+    return times
+
+
+def get_time(time_array):
+    """
+    Functions that creates a 3d time array from timestamps
+    :param time_array: 2d timestamp array
+    :return: 3d time array
+    """
+    v_func = np.vectorize(lambda x: datetime.fromtimestamp(x))
+    _time = v_func(time_array)
+    return _time
 
 
 if __name__ == '__main__':
