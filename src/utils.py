@@ -61,7 +61,7 @@ def time_3d(time_array, numbers):
     :param numbers: number of times in the new axis
     :return: 3d time array
     """
-    v_func = np.vectorize(lambda x: datetime.fromtimestamp(x))
+    v_func = np.vectorize(lambda x: datetime.utcfromtimestamp(x))
     _time = v_func(time_array)
     times = np.repeat(_time[np.newaxis, :], numbers, axis=0)
     return times
@@ -73,7 +73,7 @@ def get_time(time_array):
     :param time_array: 2d timestamp array
     :return: 3d time array
     """
-    v_func = np.vectorize(lambda x: datetime.fromtimestamp(x))
+    v_func = np.vectorize(lambda x: datetime.utcfromtimestamp(x))
     _time = v_func(time_array)
     return _time
 
