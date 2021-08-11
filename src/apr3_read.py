@@ -26,6 +26,28 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
         ds = xr.Dataset()
         for key in members[group]:
             try:
+                time = get_time(h5f[group]['scantime'][12, :])
+            except IndexError:
+                time = get_time(h5f[group]['scantime'][0, :])
+            except KeyError:
+                try:
+                    attr_dict = {'units': dt_params[group][key]['units'],
+                                 'notes': dt_params[group][key]['notes']}
+                    da = xr.DataArray(h5f[group][key][:][0],
+                                      dims=['params'],
+                                      attrs=attr_dict)
+                    ds[key] = da
+                    flag_1 = key
+                except KeyError:
+                    attr_dict = {'units': dt_params[group][key]['units'],
+                                 'notes': dt_params[group][key]['notes']}
+                    da = xr.DataArray(np.full_like(h5f[group][flag_1][:][0], np.nan),
+                                      dims=['params'],
+                                      attrs=attr_dict)
+                    ds[key] = da
+                continue
+
+            try:
                 if h5f[group][key].size == 1:
                     attr_dict = {'units': dt_params[group][key]['units'],
                                  'notes': dt_params[group][key]['notes']}
@@ -36,9 +58,11 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                 elif h5f[group][key].ndim == 2:
                     attr_dict = {'units': dt_params[group][key]['units'],
                                  'notes': dt_params[group][key]['notes']}
+
                     da = xr.DataArray(h5f[group][key][:],
-                                      coords={'cross_track': np.arange(h5f[group][key].shape[0]),
-                                              'time': get_time(h5f[group]['scantime'][12, :])},
+                                      coords={'cross_track': np.arange(h5f[group][key].shape[0])
+,
+                                              'time': time},
                                       dims=['cross_track', 'time'],
                                       attrs=attr_dict)
                     if key == 'roll':
@@ -50,10 +74,11 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                     try:
                         attr_dict = {'units': dt_params[group][key]['units'],
                                      'notes': dt_params[group][key]['notes']}
+
                         da = xr.DataArray(h5f[group][key][:],
                                           dims={'range': np.arange(h5f[group][key].shape[0]),
                                                 'cross_track': np.arange(h5f[group][key].shape[1]),
-                                                'time': get_time(h5f[group]['scantime'][12, :])},
+                                                'time': time},
                                           coords={
                                               'lon3d': (['range', 'cross_track', 'time'], h5f[group]['lon3D'][:]),
                                               'lat3d': (['range', 'cross_track', 'time'], h5f[group]['lat3D'][:]),
@@ -67,7 +92,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                         da = xr.DataArray(h5f[group][key][:],
                                           dims={'vector': np.arange(h5f[group][key].shape[0]),
                                                 'cross_track': np.arange(h5f[group][key].shape[1]),
-                                                'time': get_time(h5f[group]['scantime'][12, :])},
+                                                'time': time},
                                           attrs=attr_dict)
                         ds[key] = da
             except KeyError:
@@ -76,7 +101,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                 da = xr.DataArray(np.full_like(h5f[group][flag][:], np.nan),
                                   dims={'range': np.arange(h5f[group][flag].shape[0]),
                                         'cross_track': np.arange(h5f[group][flag].shape[1]),
-                                        'time': get_time(h5f[group]['scantime'][12, :])},
+                                        'time': time},
                                   coords={
                                       'lon3d': (['range', 'cross_track', 'time'], h5f[group]['lon3D'][:]),
                                       'lat3d': (['range', 'cross_track', 'time'], h5f[group]['lat3D'][:]),
