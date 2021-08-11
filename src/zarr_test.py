@@ -13,12 +13,14 @@ def data_test(path_file):
 
 def hdf2zar(path_file):
     now = time.time()
-    files = glob.glob(f'{path_file}/data/*KUsKAsWn.h5')
+    files = glob.glob(f'{path_file}/data/*.h5')
+    files = [item for item in files if '_c1.h5' not in item]
     files.sort()
     with open(f'{path_file}/good_files.txt', 'w') as good,  \
             open(f'{path_file}/bad_files.txt', 'w') as bad:
         for i, file in enumerate(files):
-            ds = hdf2xr(file, groups=['lores'])
+            print(i, file)
+            ds = hdf2xr(file)
             args = {'consolidated': True}
             if i == 0:
                 args['mode'] = 'w'
@@ -26,10 +28,11 @@ def hdf2zar(path_file):
                 args['mode'] = 'a'
                 args['append_dim'] = 'time'
             try:
-                ds['lores'].to_zarr(store=f'{path_file}/zarr/apr3.zarr', **args)
-                good.write(f"{file.split('/')[-1]}\n")
+                for key in ds:
+                    ds[key].to_zarr(store=f'{path_file}/zarr/{key}.zarr', **args)
+                    good.writelines(f"{file.split('/')[-1]}\n")
             except ValueError as e:
-                bad.write(f"{file.split('/')[-1]}, {e}\n")
+                bad.writelines(f"{file.split('/')[-1]}, {e}\n")
         del ds
     good.close()
     bad.close()
