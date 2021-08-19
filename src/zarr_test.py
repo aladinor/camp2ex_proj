@@ -14,10 +14,10 @@ def data_test(path_file):
 
 def hdf2zar(path_file):
     now = time.time()
-    files_dict = {}
-    files_dict['Wn'] = glob.glob(f'{path_file}/data/*_Wn.h5')
-    files_dict['KUsKAsWs'] = glob.glob(f'{path_file}/data/*_KUsKAsWs.h5')
-    files_dict['KUsKAs_Wn'] = glob.glob(f'{path_file}/data/*_KUsKAs.h5') + glob.glob(f'{path_file}/data/*_KUsKAsWn.h5')
+    files_dict = {'Wn': glob.glob(f'{path_file}/data/*_Wn.h5'),
+                  'KUsKAsWs': glob.glob(f'{path_file}/data/*_KUsKAsWs.h5'),
+                  'KUsKAs_Wn': glob.glob(f'{path_file}/data/*_KUsKAs.h5') + glob.glob(
+                      f'{path_file}/data/*_KUsKAsWn.h5')}
 
     for key_outer in files_dict:
         files = files_dict[key_outer]
