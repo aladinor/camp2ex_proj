@@ -27,7 +27,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
         for key in members[group]:
             try:
                 time = get_time(h5f[group]['scantime'][12, :])
-            except IndexError:
+            except (IndexError, ValueError):
                 time = get_time(h5f[group]['scantime'][0, :])
             except KeyError:
                 try:
