@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import glob
 import time
+import os
 import xarray as xr
 from apr3_read import hdf2xr
 from utils import make_dir
@@ -22,6 +23,8 @@ def hdf2zar(path_file):
     for key_outer in files_dict:
         files = files_dict[key_outer]
         files.sort()
+        if not files:
+            continue
         make_dir(f'{path_file}/zarr/{key_outer}')
         with open(f'{path_file}/zarr/{key_outer}/good_files.txt', 'w') as good,  \
                 open(f'{path_file}/zarr/{key_outer}/bad_files.txt', 'w') as bad:
@@ -41,8 +44,21 @@ def hdf2zar(path_file):
                     try:
                         ds[key].to_zarr(store=f'{path_file}/zarr/{key_outer}/{key}.zarr', **args)
                         good.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, \n")
-                    except (ValueError, KeyError, IndexError) as e:
-                        bad.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, {e}\n")
+                    except ValueError as e:
+                        while e is not True:
+                            _var, _num = str(e).split(' ')[1][1:-1], str(e).split(' ')[14][:-1]
+                            args = {'consolidated': True}
+                            if os.path.isdir(f'{path_file}/zarr/{key_outer}/{key}_{_var}_{_num}.zarr'):
+                                args['mode'] = 'a'
+                                if not hasattr(ds[key], 'time'):
+                                    args['append_dim'] = 'params'
+                                else:
+                                    args['append_dim'] = 'time'
+                            else:
+                                args['mode'] = 'w'
+                            ds[key].to_zarr(store=f'{path_file}/zarr/{key_outer}/{key}_{_var}_{_num}.zarr', **args)
+                            bad.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, {e}\n")
+                            e = True
                 del ds
         good.close()
         bad.close()
