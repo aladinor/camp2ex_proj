@@ -4,7 +4,6 @@ import os
 import numpy as np
 from configparser import ConfigParser
 from datetime import datetime
-import numba as nb
 
 
 def make_dir(path):
