@@ -45,7 +45,8 @@ def hdf2zar(path_file):
                         ds[key].to_zarr(store=f'{path_file}/zarr/{key_outer}/{key}.zarr', **args)
                         good.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, \n")
                     except ValueError as e:
-                        while e is not True:
+                        tries = 0
+                        while e is not True and not tries > 3:
                             _var, _num = str(e).split(' ')[1][1:-1], str(e).split(' ')[14][:-1]
                             args = {'consolidated': True}
                             if os.path.isdir(f'{path_file}/zarr/{key_outer}/{key}_{_var}_{_num}.zarr'):
@@ -57,8 +58,10 @@ def hdf2zar(path_file):
                             else:
                                 args['mode'] = 'w'
                             ds[key].to_zarr(store=f'{path_file}/zarr/{key_outer}/{key}_{_var}_{_num}.zarr', **args)
-                            bad.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, {e}\n")
+                            tries += 1
                             e = True
+                            good.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, \n")
+                        bad.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, {e}\n")
                 del ds
         good.close()
         bad.close()
