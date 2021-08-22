@@ -25,7 +25,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
         members[group] = members[group] + diff
         ds = xr.Dataset()
         for key in members[group]:
-            encode = {'dtype': 'float32', '_FillValue': '-99999'}
+            encode = {'dtype': 'float32', '_FillValue': '-9999'}
             try:
                 time = get_time(h5f[group]['scantime'][12, :])
             except (IndexError, ValueError):
@@ -115,6 +115,8 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                                   attrs=attr_dict)
                 da.encoding = encode
                 ds[key] = da
+            if hasattr(ds, 'time'):
+                ds.time.encoding = {'dtype': 'int64', '_FillValue': '-9999'}
         ds_res[group] = ds
     del h5f
     return ds_res
