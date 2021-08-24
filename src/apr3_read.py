@@ -25,7 +25,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
         members[group] = members[group] + diff
         ds = xr.Dataset()
         for key in members[group]:
-            encode = {'dtype': 'float32', '_FillValue': '-9999'}
+            encode = {'_FillValue': '-9999'}
             try:
                 time = get_time(h5f[group]['scantime'][12, :])
             except (IndexError, ValueError):
@@ -37,6 +37,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                     da = xr.DataArray(h5f[group][key][:][0],
                                       dims=['params'],
                                       attrs=attr_dict)
+                    encode['dtype'] = h5f[group][key][:][0].dtype
                     da.encoding = encode
                     ds[key] = da
                     flag_1 = key
@@ -46,6 +47,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                     da = xr.DataArray(np.full_like(h5f[group][flag_1][:][0], np.nan),
                                       dims=['params'],
                                       attrs=attr_dict)
+                    encode['dtype'] = h5f[group][flag_1][:][0].dtype
                     da.encoding = encode
                     ds[key] = da
                 continue
@@ -57,6 +59,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                     da = xr.DataArray(h5f[group][key][:][0],
                                       dims=['bin_size'],
                                       attrs=attr_dict)
+                    encode['dtype'] = h5f[group][key][:][0].dtype
                     da.encoding = encode
                     ds[key] = da
                 elif h5f[group][key].ndim == 2:
@@ -68,6 +71,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                                               'time': time},
                                       dims=['cross_track', 'time'],
                                       attrs=attr_dict)
+                    encode['dtype'] = h5f[group][key][:][0].dtype
                     da.encoding = encode
                     if key == 'roll':
                         ds['roll_'] = da
@@ -88,6 +92,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                                               'lat3d': (['range', 'cross_track', 'time'], h5f[group]['lat3D'][:]),
                                               'alt3d': (['range', 'cross_track', 'time'], h5f[group]['alt3D'][:])},
                                           attrs=attr_dict)
+                        encode['dtype'] = h5f[group][key][:][0].dtype
                         da.encoding = encode
                         ds[key] = da
                         flag = key
@@ -99,6 +104,7 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                                                 'cross_track': np.arange(h5f[group][key].shape[1]),
                                                 'time': time},
                                           attrs=attr_dict)
+                        encode['dtype'] = h5f[group][key][:][0].dtype
                         da.encoding = encode
                         ds[key] = da
             except KeyError:
@@ -113,10 +119,12 @@ def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
                                       'lat3d': (['range', 'cross_track', 'time'], h5f[group]['lat3D'][:]),
                                       'alt3d': (['range', 'cross_track', 'time'], h5f[group]['alt3D'][:])},
                                   attrs=attr_dict)
+                encode['dtype'] = h5f[group][flag][:][0].dtype
                 da.encoding = encode
                 ds[key] = da
             if hasattr(ds, 'time'):
-                ds.time.encoding = {'dtype': 'int64', '_FillValue': '-9999'}
+                encode['dtype'] = ds.time.values.dtype
+                ds.time.encoding = encode
         ds_res[group] = ds
     del h5f
     return ds_res
