@@ -16,13 +16,14 @@ def make_dir(path):
         os.makedirs(path)
 
 
-def get_pars_from_ini(file_name='../config/camp2ex.ini'):
+def get_pars_from_ini(campaign='camp2ex'):
     """
     Returns dictionary with data for creating an xarray dataset from hdf5 file
-    :param file_name: configuration filename .ini file name
-    :type file_name: str
+    :param campaign: campaign from data comes from
+    :type campaign: str
     :return: data from config files
     """
+    file_name = f'../config/{campaign}.ini'
     parser = ConfigParser()
     parser.optionxform = str
     parser.read(file_name)
