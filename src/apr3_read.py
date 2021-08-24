@@ -4,6 +4,7 @@ import h5py
 import xarray as xr
 import numpy as np
 from utils import get_pars_from_ini, get_time
+from zarr import Blosc
 
 
 def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
@@ -26,7 +27,8 @@ def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
         members[group] = members[group] + diff
         ds = xr.Dataset()
         for key in members[group]:
-            encode = {'_FillValue': '-9999'}
+            compressor = Blosc(cname="lz4", clevel=5, shuffle=0)
+            encode = {'_FillValue': '-9999', 'compresor': compressor}
             try:
                 time = get_time(h5f[group]['scantime'][12, :])
             except (IndexError, ValueError):
@@ -124,7 +126,7 @@ def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
                 da.encoding = encode
                 ds[key] = da
             if hasattr(ds, 'time'):
-                encode['dtype'] = ds.time.values.dtype
+                encode['dtype'] = 'int64'
                 ds.time.encoding = encode
         ds_res[group] = ds
     del h5f
