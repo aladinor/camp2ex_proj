@@ -6,14 +6,15 @@ import numpy as np
 from utils import get_pars_from_ini, get_time
 
 
-def hdf2xr(h5_path, groups=None, campaign='Camp2ex'):
+def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
     """
     Function that converts CAMP2EX files (hdf5 files) to xarray datasets
+    :param campaign: campaign from where data comes from
     :param groups: list of Dataset to retrieve e.g. ['lores', 'hires']. If None, all groups will be retrieved.
     :param h5_path: full path to the hdf5 file
     :return: a dictionary with groups a key and datasets as values
     """
-    dt_params = get_pars_from_ini()
+    dt_params = get_pars_from_ini(campaign=campaign)
     h5f = h5py.File(h5_path, mode='r')
     if not groups:
         groups = [i[0] for i in h5f.items()]
