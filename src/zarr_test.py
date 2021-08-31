@@ -1,16 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import glob
 import time
 import os
-import xarray as xr
 from apr3_read import hdf2xr
 from utils import make_dir
-
-
-def data_test(path_file):
-    ds_xr = xr.open_zarr(f'{path_file}/zarr/apr3.zarr', consolidated=True, decode_times=True)
-    print('Done!')
 
 
 def hdf2zar(path_file):
@@ -71,7 +65,6 @@ def hdf2zar(path_file):
 def main():
     path_file = '/data/keeling/a/alfonso8/gpm/camp2ex'
     hdf2zar(path_file)
-    # data_test(path_file)
 
 
 if __name__ == '__main__':
