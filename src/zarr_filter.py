@@ -36,8 +36,8 @@ def data_test(path_file):
                 indicators = (tex > 0).astype(int)
                 _sum = np.sum(indicators)
                 if _sum > 40:
-                    _events.append(date)
-                    events.writelines(f"{date}\n")
+                    _events.append(date.values)
+                    events.writelines(f"{date.values}\n")
             except ValueError:
                 continue
     events.close()
