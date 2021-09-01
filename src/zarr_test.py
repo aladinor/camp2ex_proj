@@ -63,7 +63,7 @@ def hdf2zar(path_file):
 
 
 def main():
-    path_file = '/media/alfonso/drive/Alfonso/camp2ex_proj'
+    path_file = '/data/keeling/a/alfonso8/gpm/camp2ex'
     hdf2zar(path_file)
 
 
