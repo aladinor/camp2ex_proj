@@ -136,3 +136,4 @@ dmypy.json
 /zarr
 # Others
 .idea/
+src/dask-worker-space
