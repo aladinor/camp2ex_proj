@@ -5,9 +5,8 @@ import os
 import h5py
 import xarray as xr
 import numpy as np
-from utils import get_pars_from_ini, get_time
+from src.utils import get_pars_from_ini, get_time, make_dir
 from zarr import Blosc
-from utils import make_dir
 
 
 def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
