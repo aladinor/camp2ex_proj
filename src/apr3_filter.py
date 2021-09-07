@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import os
 import xarray as xr
 import numpy as np
-import os
 from src.utils import get_pars_from_ini
 from scipy.ndimage.filters import uniform_filter
 from scipy.ndimage.measurements import variance
