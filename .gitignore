@@ -134,6 +134,7 @@ dmypy.json
 /pem
 /gis
 /zarr
+/zarr_rechunked
 # Others
 .idea/
 src/dask-worker-space
