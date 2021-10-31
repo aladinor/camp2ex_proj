@@ -147,7 +147,9 @@ def process_new(zhh14, x, y, time):
         _props_all = [[[prop.area], [prop.perimeter], [prop.major_axis_length], [prop.minor_axis_length],
                        [prop.bbox]] for prop in props]
         df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox'], index=time)
-
+    df['total'] = [[total[:, i]] for i in range(total.shape[-1])]
+    df['num_px'] = [[num_pixels.compute()[:, i]] for i in range(num_pixels.shape[-1])]
+    df['weigt'] = [[weigt.compute()[:, i]] for i in range(weigt.shape[-1])]
     # df = df.explode(['area', 'perimeter', 'axmax', 'axmin'])
     # df.to_csv(f'../results/all_{len(time)}.csv')
     # df = df.astype(dtype={'area': 'float', 'perimeter': 'float', 'axmax': 'float', 'axmin': 'float'})
