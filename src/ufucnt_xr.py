@@ -13,6 +13,7 @@ from scipy.spatial import cKDTree as KDTree
 
 from skimage.filters import gaussian, threshold_otsu
 from skimage import measure
+from dask import delayed
 from dask_image.ndfilters import uniform_filter as uf
 from dask_image.ndmeasure import variance as varian
 
@@ -45,8 +46,7 @@ def excluding_mesh(x, y, nx=30, ny=30):
     xp = xp.ravel()
     yp = yp.ravel()
 
-    # Use KDTree to answer the question: "which point of set (x,y) is the
-    # nearest neighbors of those in (xp, yp)"
+
     tree = KDTree(np.c_[x, y])
     dist, j = tree.query(np.c_[xp, yp], k=1)
 
@@ -60,32 +60,32 @@ def regridd(data, x, y, size=30):
     data = xarray datarray
     size = desired pixel size in meters
     """
-    x = np.nan_to_num(x)
-    y = np.nan_to_num(y)
     if data.ndim > 2:
-        x_s = np.asarray([x[:, :, i].flatten() for i in range(x.shape[-1])])
-        y_s = np.asarray([y[:, :, i].flatten() for i in range(y.shape[-1])])
+        x_n = np.rollaxis(x.reshape(-1, x.shape[-1]), 1)
+        y_n = np.rollaxis(y.reshape(-1, y.shape[-1]), 1)
         z_s = data.compute()
-        z_s = np.asarray([z_s[:, :, i].flatten() for i in range(z_s.shape[-1])])
-        idx = np.asarray([x_s[i].argsort() for i in range(x_s.shape[0])])
-        x_s = np.asarray([np.take_along_axis(x_s[i], idx[i], axis=0) for i in range(x_s.shape[0])])
-        y_s = np.asarray([np.take_along_axis(y_s[i], idx[i], axis=0) for i in range(y_s.shape[0])])
-        z_s = np.asarray([np.take_along_axis(z_s[i], idx[i], axis=0) for i in range(z_s.shape[0])])
-        ncols = max(np.apply_along_axis(get_col_row, arr=x_s, axis=1))
-        nrows = max(np.apply_along_axis(get_col_row, arr=y_s, axis=1))
-        vp = np.asarray([excluding_mesh(x_s[i], y_s[i]) for i in range(x_s.shape[0])], dtype=object)
-        xp, yp = vp[:, 0], vp[:, 1]
-        zp = np.asarray([np.nan + np.zeros_like(xp[i]) for i in range(xp.shape[0])], dtype=object)
-        x_new = np.asarray([np.linspace(x_s[i, :].min(), x_s[i, :].max(), ncols) for i in range(xp.shape[0])])
-        y_new = np.asarray([np.linspace(y_s[i, :].max(), y_s[i, :].min(), nrows)
-                            for i in range(xp.shape[0])])
-        mesh = [np.meshgrid(x_new[i], y_new[i]) for i in range(x_new.shape[0])]
-        xi = np.asarray(mesh)[:, 0]
-        yi = np.asarray(mesh)[:, 1]
-        z0 = [griddata((np.r_[x_s[i, :], xp[i]], np.r_[y_s[i, :], yp[i]]), np.r_[z_s[i, :], zp[i]],
-                       (xi[i], yi[i]), method='linear', fill_value=-9999)
+        z_n = np.rollaxis(z_s.reshape(-1, z_s.shape[-1]), 1)
+        idx_n = x_n.argsort(axis=-1)
+        x_n = np.take_along_axis(x_n, idx_n, axis=-1)
+        y_n = np.take_along_axis(y_n, idx_n, axis=-1)
+        z_n = np.take_along_axis(z_n, idx_n, axis=-1)
+        ncols_n = max(np.apply_along_axis(get_col_row, arr=x_n, axis=1))
+        nrows_n = max(np.apply_along_axis(get_col_row, arr=y_n, axis=1))
+        vp_n = [delayed(excluding_mesh)(x_n[i], y_n[i]) for i in range(x_n.shape[0])]
+        vp_n = da.rollaxis(da.dstack(dask.compute(*vp_n)), -1)
+        xp_n, yp_n = vp_n[:, 0], vp_n[:, 1]
+        zp_n = [delayed(da.zeros_like)(xp_n[i]) for i in range(xp_n.shape[0])]
+        zp_n = da.rollaxis(da.dstack(dask.compute(*zp_n))[0], -1)
+        x_new_n = da.from_array(np.rollaxis(np.linspace(np.amin(x_n, -1), np.amax(x_n, -1), ncols_n), 1))
+        y_new_n = da.from_array(np.rollaxis(np.linspace(np.amax(y_n, -1), np.amin(y_n, -1), nrows_n), 1))
+        mesh = [delayed(da.meshgrid)(x_new_n[i], y_new_n[i]) for i in range(x_new_n.shape[0])]
+        mesh = dask.compute(*mesh)
+        xi = da.asarray(mesh)[:, 0]
+        yi = da.asarray(mesh)[:, 1]
+        z0 = [delayed(griddata)((np.r_[x_n[i, :], xp_n[i]], np.r_[y_n[i, :], yp_n[i]]), np.r_[z_n[i, :], zp_n[i]],
+                                (xi[i], yi[i]), method='linear', fill_value=-9999)
               for i in range(xi.shape[0])]
-        z0 = np.dstack(z0)
+        z0 = da.dstack(dask.compute(*z0))
         return z0
     else:
         x_s = x.flatten()
@@ -176,10 +176,10 @@ def ufunc_wrapper(data):
 
 
 def main():
-    ds_xr = xr.open_zarr('C:/Users/alfonso8/Documents/python/camp2ex_proj/zarr/lores.zarr', consolidated=True)
+    ds_xr = xr.open_zarr(f'{path_data}/zarr/KUsKAs_Wn/lores.zarr', consolidated=True)
     ds_xr = ds_xr.sel(time=~ds_xr.get_index("time").duplicated())
-    # ds_data = ds_xr.zhh14.sel(time='2019-09-16 03:12:58').isel(time=0)
-    ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time=slice('2019-09-16 03:12:50', '2019-09-16 04:14:05'))
+    # ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time='2019-09-16 03:12:58').isel(time=0)
+    ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time=slice('2019-09-16 03:12:50', '2019-09-16 03:13:05'))
     a = ufunc_wrapper(ds_data)
     w = dask.compute(a)
     df = w[0].to_dataframe()
