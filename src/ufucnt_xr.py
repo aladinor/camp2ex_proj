@@ -79,28 +79,16 @@ def regridd(data, x, y, size=30):
         xn = [vp_n[i][0] for i in range(len(vp_n))]
         yn = [vp_n[i][1] for i in range(len(vp_n))]
 
-        # vp_n = da.rollaxis(da.dstack(dask.compute(*vp_n)), -1)
-        # xp_n, yp_n = vp_n[:, 0], vp_n[:, 1]
-
         xn_arr = [da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in xn]
         yn_arr = [da.from_delayed(v, shape=(y_n.shape[0], np.nan), dtype=float) for v in yn]
 
-        # zp_n = [delayed(da.zeros_like)(xp_n[i]) for i in range(xp_n.shape[0])]
         zn = [delayed(da.zeros_like)(xn_arr[i]) for i in range(x_n.shape[0])]
         zn_arr = [da.from_delayed(v, shape=(z_n.shape[0], np.nan), dtype=float) for v in zn]
-        # zp_n = da.rollaxis(da.dstack(dask.compute(*zp_n))[0], -1)
 
         xi_ = [mesh[i][0] for i in range(len(vp_n))]
         xi_ = dask.compute(*[da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in xi_])
         yi_ = [mesh[i][1] for i in range(len(vp_n))]
         yi_ = dask.compute(*[da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in yi_])
-
-        # mesh = dask.compute(*mesh)
-        # xi = da.asarray(mesh)[:, 0]
-        # yi = da.asarray(mesh)[:, 1]
-        # z0 = [delayed(griddata)((np.r_[x_n[i, :], xp_n[i]], np.r_[y_n[i, :], yp_n[i]]), np.r_[z_n[i, :], zp_n[i]],
-        #                         (xi[i], yi[i]), method='linear', fill_value=-9999)
-        #       for i in range(xi.shape[0])]
 
         zr = [delayed(griddata)((np.r_[x_n[i, :], xn_arr[i]], np.r_[y_n[i, :], yn_arr[i]]), np.r_[z_n[i, :], zn_arr[i]],
                                 (xi_[i], yi_[i]), method='linear', fill_value=-9999)
@@ -155,7 +143,6 @@ def process_new(zhh14, x, y, time):
     else:
         total = da.nansum(da.where(img >= 0, 1, 0), axis=1)  # Total of number of pixels
     num_pixels = [i for i in (da.rollaxis(da.nansum(da.where(img > 0, 1, np.nan), axis=1), -1).compute())]
-    # num_pixels = [[i] for i in num_pixels]
     num_pixels = pd.DataFrame({'num_pix': num_pixels}, index=pd.to_datetime(time))
     img = np.where(img > 0., img, 0.)
     blurred = gaussian(img, sigma=0.8)
@@ -174,8 +161,6 @@ def process_new(zhh14, x, y, time):
         df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox'], index=time)
     df['num_px'] = num_pixels.num_pix
     df.to_csv('../results/all_filtered_01_11_2021.csv')
-    xr_prop = xr.Dataset.from_dataframe(df).rename_dims({'index': 'time'}).rename({'index': 'time'})
-    xr_prop = xr_prop.assign_attrs({'total_num_px': list(total.compute())})
     return df.area, df.perimeter, df.axmax, df.axmin, df.bbox, np.asarray(total), df.num_px
 
 
