@@ -10,7 +10,7 @@ import numpy as np
 from re import split
 from scipy.interpolate import griddata
 from scipy.spatial import cKDTree as KDTree
-
+import random
 from skimage.filters import gaussian, threshold_otsu
 from skimage import measure
 from dask import delayed
@@ -42,10 +42,9 @@ def excluding_mesh(x, y, nx=30, ny=30):
     dy = y.ptp() / ny
 
     xp, yp = np.mgrid[x.min() - 2 * dx:x.max() + 2 * dx:(nx + 2) * 1j,
-                      y.min() - 2 * dy:y.max() + 2 * dy:(ny + 2) * 1j]
+             y.min() - 2 * dy:y.max() + 2 * dy:(ny + 2) * 1j]
     xp = xp.ravel()
     yp = yp.ravel()
-
 
     tree = KDTree(np.c_[x, y])
     dist, j = tree.query(np.c_[xp, yp], k=1)
@@ -63,30 +62,42 @@ def regridd(data, x, y, size=30):
     if data.ndim > 2:
         x_n = np.rollaxis(x.reshape(-1, x.shape[-1]), 1)
         y_n = np.rollaxis(y.reshape(-1, y.shape[-1]), 1)
-        z_s = data.compute()
-        z_n = np.rollaxis(z_s.reshape(-1, z_s.shape[-1]), 1)
+        ncols_n = max(np.apply_along_axis(get_col_row, arr=x_n, axis=1))
+        nrows_n = max(np.apply_along_axis(get_col_row, arr=y_n, axis=1))
+        x_new_n = da.from_array(np.rollaxis(np.linspace(np.amin(x_n, -1), np.amax(x_n, -1), ncols_n), 1))
+        y_new_n = da.from_array(np.rollaxis(np.linspace(np.amax(y_n, -1), np.amin(y_n, -1), nrows_n), 1))
+        mesh = [delayed(da.meshgrid)(x_new_n[i], y_new_n[i]) for i in range(x_new_n.shape[0])]
+
+        z_s = data
+        z_n = da.rollaxis(z_s.reshape(-1, z_s.shape[-1]), 1)
         idx_n = x_n.argsort(axis=-1)
         x_n = np.take_along_axis(x_n, idx_n, axis=-1)
         y_n = np.take_along_axis(y_n, idx_n, axis=-1)
         z_n = np.take_along_axis(z_n, idx_n, axis=-1)
-        ncols_n = max(np.apply_along_axis(get_col_row, arr=x_n, axis=1))
-        nrows_n = max(np.apply_along_axis(get_col_row, arr=y_n, axis=1))
+
         vp_n = [delayed(excluding_mesh)(x_n[i], y_n[i]) for i in range(x_n.shape[0])]
-        vp_n = da.rollaxis(da.dstack(dask.compute(*vp_n)), -1)
-        xp_n, yp_n = vp_n[:, 0], vp_n[:, 1]
-        zp_n = [delayed(da.zeros_like)(xp_n[i]) for i in range(xp_n.shape[0])]
-        zp_n = da.rollaxis(da.dstack(dask.compute(*zp_n))[0], -1)
-        x_new_n = da.from_array(np.rollaxis(np.linspace(np.amin(x_n, -1), np.amax(x_n, -1), ncols_n), 1))
-        y_new_n = da.from_array(np.rollaxis(np.linspace(np.amax(y_n, -1), np.amin(y_n, -1), nrows_n), 1))
-        mesh = [delayed(da.meshgrid)(x_new_n[i], y_new_n[i]) for i in range(x_new_n.shape[0])]
-        mesh = dask.compute(*mesh)
-        xi = da.asarray(mesh)[:, 0]
-        yi = da.asarray(mesh)[:, 1]
-        z0 = [delayed(griddata)((np.r_[x_n[i, :], xp_n[i]], np.r_[y_n[i, :], yp_n[i]]), np.r_[z_n[i, :], zp_n[i]],
-                                (xi[i], yi[i]), method='linear', fill_value=-9999)
-              for i in range(xi.shape[0])]
-        z0 = da.dstack(dask.compute(*z0))
-        return z0
+        xn = [vp_n[i][0] for i in range(len(vp_n))]
+        yn = [vp_n[i][1] for i in range(len(vp_n))]
+
+        xn_arr = [da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in xn]
+        yn_arr = [da.from_delayed(v, shape=(y_n.shape[0], np.nan), dtype=float) for v in yn]
+
+        zn = [delayed(da.zeros_like)(xn_arr[i]) for i in range(x_n.shape[0])]
+        zn_arr = [da.from_delayed(v, shape=(z_n.shape[0], np.nan), dtype=float) for v in zn]
+
+        xi_ = [mesh[i][0] for i in range(len(vp_n))]
+        xi_ = dask.compute(*[da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in xi_])
+        yi_ = [mesh[i][1] for i in range(len(vp_n))]
+        yi_ = dask.compute(*[da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in yi_])
+
+        zr = [delayed(griddata)((np.r_[x_n[i, :], xn_arr[i]], np.r_[y_n[i, :], yn_arr[i]]), np.r_[z_n[i, :], zn_arr[i]],
+                                (xi_[i], yi_[i]), method='linear', fill_value=-9999)
+              for i in range(x_n.shape[0])]
+
+        zr = da.dstack(dask.compute(*zr))
+        return zr, da.rollaxis(da.rollaxis(da.asarray(xi_), axis=-1), axis=-1), \
+               da.rollaxis(da.rollaxis(da.asarray(yi_), axis=-1), axis=-1)
+
     else:
         x_s = x.flatten()
         y_s = y.flatten()
@@ -102,7 +113,7 @@ def regridd(data, x, y, size=30):
         xp, yp = excluding_mesh(x_s, y_s, nx=35, ny=35)
         zp = np.nan + np.zeros_like(xp)
         z0 = griddata((np.r_[x_s, xp], np.r_[y_s, yp]), np.r_[z_s, zp], (xi, yi), method='linear', fill_value=-9999)
-        return z0
+        return z0, xi, yi
 
 
 def lee_filter_new(img, size, tresh=-150):
@@ -124,7 +135,15 @@ def lee_filter_new(img, size, tresh=-150):
 def process_new(zhh14, x, y, time):
     x = x[:, 0, :, :]
     img_filtered = lee_filter_new(zhh14, size=3, tresh=-200)
-    img = regridd(img_filtered, x, y)
+    img, xi, yi = regridd(img_filtered, x, y)
+    if zhh14.ndim > 2:
+        rnd = random.randint(0, img.shape[-1] - 1)
+        total, _x, _y = regridd(img_filtered[:, :, rnd], x[:, :, rnd], y[:, :, rnd])
+        total = da.nansum(da.where(total >= 0, 1, 0), axis=1)
+    else:
+        total = da.nansum(da.where(img >= 0, 1, 0), axis=1)  # Total of number of pixels
+    num_pixels = [i for i in (da.rollaxis(da.nansum(da.where(img > 0, 1, np.nan), axis=1), -1).compute())]
+    num_pixels = pd.DataFrame({'num_pix': num_pixels}, index=pd.to_datetime(time))
     img = np.where(img > 0., img, 0.)
     blurred = gaussian(img, sigma=0.8)
     binary = blurred > threshold_otsu(blurred)
@@ -139,46 +158,44 @@ def process_new(zhh14, x, y, time):
         props = measure.regionprops(labels)
         _props_all = [[[prop.area], [prop.perimeter], [prop.major_axis_length], [prop.minor_axis_length],
                        [prop.bbox]] for prop in props]
-        df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox'])
-
-    df = df.explode(['area', 'perimeter', 'axmax', 'axmin'])
-    df.to_csv(f'../results/all_{len(time)}.csv')
-    df = df.astype(dtype={'area': 'float', 'perimeter': 'float', 'axmax': 'float', 'axmin': 'float'})
-    df = df[df.area > 50.0]
-    df_new = pd.DataFrame(index=time, data=np.full(len(time), np.nan), columns=['area'])
-    df_new = df_new.merge(df, left_index=True, right_index=True, how='left').drop(['area_x'], axis=1)
-    idx = df_new.index.duplicated()
-    xr_prop = xr.Dataset.from_dataframe(df_new[~idx]).rename_dims({'index': 'time'}).rename({'index': 'time'})
-    return xr_prop.area_y, xr_prop.perimeter, xr_prop.axmax, xr_prop.axmin
+        df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox'], index=time)
+    df['num_px'] = num_pixels.num_pix
+    df.to_csv('../results/all_filtered_01_11_2021.csv')
+    return df.area, df.perimeter, df.axmax, df.axmin, df.bbox, np.asarray(total), df.num_px
 
 
 def ufunc_wrapper(data):
-    x = data.range * data.DR * np.sin(np.deg2rad(data.azimuth)) # add roll
+    x = data.range * data.DR * np.sin(np.deg2rad(data.azimuth))  # add roll
     y = data.alt3d * np.cos(np.deg2rad(data.azimuth))
     zhh = data.zhh14.where(data.alt3d > 500)
     _data = [zhh, x, y, data.time]
     icd = [list(i.dims) for i in _data]
     dfk = {'allow_rechunk': True, 'output_sizes': {}}
-    a, p, mx, mn = xr.apply_ufunc(process_new,
-                                  *_data,
-                                  input_core_dims=icd,
-                                  output_core_dims=[["time"], ["time"], ["time"], ["time"]],
-                                  dask_gufunc_kwargs=dfk,
-                                  dask='parallelized',
-                                  vectorize=True,
-                                  output_dtypes=[(float), (float), (float), (float)]
-                                  )
+    a, p, mx, mn, bbox, attrs, npx = xr.apply_ufunc(process_new,
+                                                    *_data,
+                                                    input_core_dims=icd,
+                                                    output_core_dims=[["time"], ["time"], ["time"], ["time"], ["time"],
+                                                                      [], []],
+                                                    dask_gufunc_kwargs=dfk,
+                                                    dask='parallelized',
+                                                    vectorize=True,
+                                                    output_dtypes=[(object), (object), (object), (object), (object),
+                                                                   (object), (object)]
+                                                    )
     ds_out = a.to_dataset(name='area')
     ds_out['perimeter'] = p
     ds_out['ax_max'] = mx
     ds_out['ax_min'] = mn
+    ds_out['bbox'] = bbox
+    ds_out['num_px'] = npx
+    ds_out['attrs'] = attrs
     return ds_out
 
 
 def main():
     ds_xr = xr.open_zarr(f'{path_data}/zarr/KUsKAs_Wn/lores.zarr', consolidated=True)
     ds_xr = ds_xr.sel(time=~ds_xr.get_index("time").duplicated())
-    # ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time='2019-09-16 03:12:58').isel(time=0)
+    # ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time='2019-09-16 03:12:58')
     ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time=slice('2019-09-16 03:12:50', '2019-09-16 03:13:05'))
     a = ufunc_wrapper(ds_data)
     w = dask.compute(a)
