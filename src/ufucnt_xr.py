@@ -16,10 +16,6 @@ from skimage import measure
 from dask import delayed
 from dask_image.ndfilters import uniform_filter as uf
 from dask_image.ndmeasure import variance as varian
-from numba import jit
-
-# from dask_jobqueue import SLURMCluster
-# from dask.distributed import Client, progress
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -44,7 +40,7 @@ def excluding_mesh(x, y, nx=30, ny=30):
     dy = y.ptp() / ny
 
     xp, yp = np.mgrid[x.min() - 2 * dx:x.max() + 2 * dx:(nx + 2) * 1j,
-                      y.min() - 2 * dy:y.max() + 2 * dy:(ny + 2) * 1j]
+             y.min() - 2 * dy:y.max() + 2 * dy:(ny + 2) * 1j]
     xp = xp.ravel()
     yp = yp.ravel()
 
@@ -89,8 +85,9 @@ def regridd(data, x, y, size=30):
               for i in range(x.shape[0])]
 
         zr = da.dstack(dask.compute(*zr))
-        return zr, da.rollaxis(da.rollaxis(da.asarray(xi_), axis=-1), axis=-1), \
-               da.rollaxis(da.rollaxis(da.asarray(yi_), axis=-1), axis=-1)
+        xi_ = da.rollaxis(da.rollaxis(da.asarray(xi_), axis=-1), axis=-1)
+        yi_ = da.rollaxis(da.rollaxis(da.asarray(yi_), axis=-1), axis=-1)
+        return zr, xi_, yi_
 
     else:
         x_s = x.flatten()
