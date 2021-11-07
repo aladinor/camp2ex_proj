@@ -85,7 +85,7 @@ def regridd(data, x, y, size=30):
         yi_ = [mesh[i][1] for i in range(len(vp_n))]
         yi_ = dask.compute(*[da.from_delayed(v, shape=(x.shape[0], np.nan), dtype=float) for v in yi_])
         zr = [delayed(griddata)((np.r_[x[i, :], xn[i]], np.r_[y[i, :], yn[i]]), np.r_[z_n[i, :], zn[i]],
-                                (xi_[i], yi_[i]), method='linear', fill_value=-9999)
+                                (xi_[i], yi_[i]), method='linear', fill_value=0)
               for i in range(x.shape[0])]
 
         zr = da.dstack(dask.compute(*zr))
