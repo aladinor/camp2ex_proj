@@ -16,6 +16,7 @@ from skimage import measure
 from dask import delayed
 from dask_image.ndfilters import uniform_filter as uf
 from dask_image.ndmeasure import variance as varian
+from numba import jit
 
 # from dask_jobqueue import SLURMCluster
 # from dask.distributed import Client, progress
@@ -28,8 +29,9 @@ path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
 path_proj = get_pars_from_ini(campaign='loc')[location]['path_proj']
 
 
+# @jit
 def get_col_row(x, size=30):
-    ncols = x.ptp() / size
+    ncols = da.ptp(x) / size
     return int(ncols)
 
 
@@ -42,7 +44,7 @@ def excluding_mesh(x, y, nx=30, ny=30):
     dy = y.ptp() / ny
 
     xp, yp = np.mgrid[x.min() - 2 * dx:x.max() + 2 * dx:(nx + 2) * 1j,
-             y.min() - 2 * dy:y.max() + 2 * dy:(ny + 2) * 1j]
+                      y.min() - 2 * dy:y.max() + 2 * dy:(ny + 2) * 1j]
     xp = xp.ravel()
     yp = yp.ravel()
 
@@ -60,39 +62,31 @@ def regridd(data, x, y, size=30):
     size = desired pixel size in meters
     """
     if data.ndim > 2:
-        x_n = np.rollaxis(x.reshape(-1, x.shape[-1]), 1)
-        y_n = np.rollaxis(y.reshape(-1, y.shape[-1]), 1)
-        ncols_n = max(np.apply_along_axis(get_col_row, arr=x_n, axis=1))
-        nrows_n = max(np.apply_along_axis(get_col_row, arr=y_n, axis=1))
-        x_new_n = da.from_array(np.rollaxis(np.linspace(np.amin(x_n, -1), np.amax(x_n, -1), ncols_n), 1))
-        y_new_n = da.from_array(np.rollaxis(np.linspace(np.amax(y_n, -1), np.amin(y_n, -1), nrows_n), 1))
+        x = da.moveaxis(x.reshape(-1, x.shape[-1]), 0, -1)
+        y = da.moveaxis(y.reshape(-1, y.shape[-1]), 0, -1)
+        ncols_n = max(np.apply_along_axis(get_col_row, arr=x, axis=1))
+        nrows_n = max(np.apply_along_axis(get_col_row, arr=y, axis=1))
+        x_new_n = da.from_array(np.moveaxis(np.linspace(np.amin(x, -1), np.amax(x, -1), ncols_n), 0, -1))
+        y_new_n = da.from_array(np.moveaxis(np.linspace(np.amax(y, -1), np.amin(y, -1), nrows_n), 0, -1))
         mesh = [delayed(da.meshgrid)(x_new_n[i], y_new_n[i]) for i in range(x_new_n.shape[0])]
 
-        z_s = data
-        z_n = da.rollaxis(z_s.reshape(-1, z_s.shape[-1]), 1)
-        idx_n = x_n.argsort(axis=-1)
-        x_n = np.take_along_axis(x_n, idx_n, axis=-1)
-        y_n = np.take_along_axis(y_n, idx_n, axis=-1)
+        z_n = da.rollaxis(data.reshape(-1, data.shape[-1]), 1)
+        idx_n = x.argsort(axis=-1)
+        x = np.take_along_axis(x, idx_n, axis=-1)
+        y = np.take_along_axis(y, idx_n, axis=-1)
         z_n = np.take_along_axis(z_n, idx_n, axis=-1)
 
-        vp_n = [delayed(excluding_mesh)(x_n[i], y_n[i]) for i in range(x_n.shape[0])]
+        vp_n = dask.compute(*[delayed(excluding_mesh)(x[i], y[i]) for i in range(x.shape[0])])
         xn = [vp_n[i][0] for i in range(len(vp_n))]
         yn = [vp_n[i][1] for i in range(len(vp_n))]
-
-        xn_arr = [da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in xn]
-        yn_arr = [da.from_delayed(v, shape=(y_n.shape[0], np.nan), dtype=float) for v in yn]
-
-        zn = [delayed(da.zeros_like)(xn_arr[i]) for i in range(x_n.shape[0])]
-        zn_arr = [da.from_delayed(v, shape=(z_n.shape[0], np.nan), dtype=float) for v in zn]
-
+        zn = dask.compute(*[delayed(da.zeros_like)(xn[i]) for i in range(x.shape[0])])
         xi_ = [mesh[i][0] for i in range(len(vp_n))]
-        xi_ = dask.compute(*[da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in xi_])
+        xi_ = dask.compute(*[da.from_delayed(v, shape=(x.shape[0], np.nan), dtype=float) for v in xi_])
         yi_ = [mesh[i][1] for i in range(len(vp_n))]
-        yi_ = dask.compute(*[da.from_delayed(v, shape=(x_n.shape[0], np.nan), dtype=float) for v in yi_])
-
-        zr = [delayed(griddata)((np.r_[x_n[i, :], xn_arr[i]], np.r_[y_n[i, :], yn_arr[i]]), np.r_[z_n[i, :], zn_arr[i]],
+        yi_ = dask.compute(*[da.from_delayed(v, shape=(x.shape[0], np.nan), dtype=float) for v in yi_])
+        zr = [delayed(griddata)((np.r_[x[i, :], xn[i]], np.r_[y[i, :], yn[i]]), np.r_[z_n[i, :], zn[i]],
                                 (xi_[i], yi_[i]), method='linear', fill_value=-9999)
-              for i in range(x_n.shape[0])]
+              for i in range(x.shape[0])]
 
         zr = da.dstack(dask.compute(*zr))
         return zr, da.rollaxis(da.rollaxis(da.asarray(xi_), axis=-1), axis=-1), \
@@ -101,10 +95,10 @@ def regridd(data, x, y, size=30):
     else:
         x_s = x.flatten()
         y_s = y.flatten()
-        z_s = data.compute().flatten()
+        data = data.compute().flatten()
         idx = x_s.argsort()
         x_s, y_s = np.take_along_axis(x_s, idx, axis=0), np.take_along_axis(y_s, idx, axis=0)
-        z_s = np.take_along_axis(z_s, idx, axis=0)
+        data = np.take_along_axis(data, idx, axis=0)
         ncols = get_col_row(x=x_s, size=size)
         nrows = get_col_row(x=y_s, size=size)
         x_new = np.linspace(x_s.min(), x_s.max(), int(ncols))
@@ -112,7 +106,7 @@ def regridd(data, x, y, size=30):
         xi, yi = np.meshgrid(x_new, y_new)
         xp, yp = excluding_mesh(x_s, y_s, nx=35, ny=35)
         zp = np.nan + np.zeros_like(xp)
-        z0 = griddata((np.r_[x_s, xp], np.r_[y_s, yp]), np.r_[z_s, zp], (xi, yi), method='linear', fill_value=-9999)
+        z0 = griddata((np.r_[x_s, xp], np.r_[y_s, yp]), np.r_[data, zp], (xi, yi), method='linear', fill_value=-9999)
         return z0, xi, yi
 
 
@@ -166,7 +160,7 @@ def process_new(zhh14, x, y, time):
 
 def ufunc_wrapper(data):
     x = data.range * data.DR * np.sin(np.deg2rad(data.azimuth))  # add roll
-    y = data.alt3d * np.cos(np.deg2rad(data.azimuth))
+    y = data.alt3d
     zhh = data.zhh14.where(data.alt3d > 500)
     _data = [zhh, x, y, data.time]
     icd = [list(i.dims) for i in _data]
