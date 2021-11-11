@@ -135,26 +135,32 @@ def process_new(zhh14, x, y, time):
     blurred = gaussian(img, sigma=0.8)
     binary = blurred > threshold_otsu(blurred)
     labels = measure.label(binary)
-    if labels.ndim > 2:
+    if (labels.ndim > 2) & (zhh14.shape[-1] != 1):
         max_zhh14 = np.apply_along_axis(np.max, arr=img, axis=0).compute()
-        props = [measure.regionprops(labels[:, :, i]) for i in range(labels.shape[-1])]
-        _props_all = [[[j.area for j in prop], [j.perimeter for j in prop], [j.major_axis_length for j in prop],
-                       [j.minor_axis_length for j in prop], [j.bbox for j in prop], num_px[:, i].compute().tolist(),
-                       px_tot[:, i].compute().tolist(), np.round(max_zhh14[:, i], 2).tolist()]
-                      for i, prop in enumerate(props)]
+        max_zhh14 = np.apply_along_axis(np.max, arr=max_zhh14, axis=0)
+        df_max_zhh = pd.Series(max_zhh14, index=time, name='max_zhh')
+        df_num_px = pd.DataFrame(np.moveaxis(num_px.compute(), 0, -1), index=time)
+        df_num_px.columns = pd.MultiIndex.from_product([['num_px'], df_num_px.columns])
+        df_tot = pd.DataFrame(np.moveaxis(px_tot.compute(), 0, -1), index=time)
+        df_tot.columns = pd.MultiIndex.from_product([['tot_px'], df_tot.columns])
+        tab_props = [measure.regionprops_table(labels[:, :, i], img[:, :, i],
+                                               properties=['area', 'perimeter', 'bbox', 'major_axis_length',
+                                                           'minor_axis_length']) for i in range(labels.shape[-1])]
 
-        df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox', 'num_px', 'tot_px',
-                                                    'max_zhh'], index=pd.to_datetime(time))
+        df = pd.DataFrame(data=tab_props, index=pd.to_datetime(time))
+        df = df.merge(df_max_zhh, left_index=True, right_index=True)
+        df = df.merge(df_num_px, left_index=True, right_index=True)
+        df = df.merge(df_tot, left_index=True, right_index=True)
     else:
-        max_zhh = np.max(img)
-        props = measure.regionprops(labels)
-        _props_all = [[[prop.area], [prop.perimeter], [prop.major_axis_length], [prop.minor_axis_length],
-                       [prop.bbox], [num_px], [px_tot], [max_zhh]] for prop in props]
-        df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox', 'num_px', 'tot_px',
-                                                    'max_zhh'], index=pd.to_datetime(time))
+        max_zhh = np.max(img.compute())
+        props = measure.regionprops_table(labels[:, :, 0], img[:, :, 0].compute(),
+                                          properties=['area', 'perimeter', 'bbox', 'major_axis_length',
+                                                      'minor_axis_length'])
+        props['max_zhh'] = max_zhh
+        df = pd.DataFrame(data=props, index=pd.to_datetime(time))
+
     dates = datetime.now(timezone.utc)
-    df.to_csv(f'../results/all_filtered_{dates:%Y}{dates:%m}{dates:%d}{dates:%H}{dates:%M}.csv')
-    return df.area, df.perimeter, df.axmax, df.axmin, df.bbox, df.num_px, df.tot_px, df.max_zhh
+    df.to_csv(f"../results/all_filtered_{dates:%Y}{dates:%m}{dates:%d}{dates:%H}{dates:%M}.csv")
 
 
 def ufunc_wrapper(data):
@@ -164,26 +170,15 @@ def ufunc_wrapper(data):
     _data = [zhh, x, y, data.time]
     icd = [list(i.dims) for i in _data]
     dfk = {'allow_rechunk': True, 'output_sizes': {}}
-    a, p, mx, mn, bbox, npx, tot, mx_zhh = xr.apply_ufunc(process_new,
-                                                          *_data,
-                                                          input_core_dims=icd,
-                                                          output_core_dims=[["time"], ["time"], ["time"], ["time"],
-                                                                            ["time"], ["time"], ["time"], ["time"]],
-                                                          dask_gufunc_kwargs=dfk,
-                                                          dask='parallelized',
-                                                          vectorize=True,
-                                                          output_dtypes=[(object), (object), (object), (object),
-                                                                         (object),(object), (object), (object)]
-                                                          )
-    ds_out = a.to_dataset(name='area')
-    ds_out['perimeter'] = p
-    ds_out['ax_max'] = mx
-    ds_out['ax_min'] = mn
-    ds_out['bbox'] = bbox
-    ds_out['num_px'] = npx
-    ds_out['tot'] = tot
-    ds_out['max_zhh'] = mx_zhh
-    return ds_out
+    xr.apply_ufunc(process_new,
+                   *_data,
+                   input_core_dims=icd,
+                   output_core_dims=[[], ],
+                   dask_gufunc_kwargs=dfk,
+                   dask='parallelized',
+                   vectorize=True,
+                   output_dtypes=[]
+                   )
 
 
 def main():
