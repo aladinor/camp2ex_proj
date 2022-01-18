@@ -6,11 +6,12 @@ import dask
 import pandas as pd
 import xarray as xr
 import dask.array as da
+import dask.dataframe as dd
 import numpy as np
 from re import split
 from scipy.interpolate import griddata
 from scipy.spatial import cKDTree as KDTree
-import random
+from datetime import datetime, timezone
 from skimage.filters import gaussian, threshold_otsu
 from skimage import measure
 from dask import delayed
@@ -83,7 +84,6 @@ def regridd(data, x, y, size=30):
         zr = [delayed(griddata)((np.r_[x[i, :], xn[i]], np.r_[y[i, :], yn[i]]), np.r_[z_n[i, :], zn[i]],
                                 (xi_[i], yi_[i]), method='linear', fill_value=0)
               for i in range(x.shape[0])]
-
         zr = da.dstack(dask.compute(*zr))
         xi_ = da.rollaxis(da.rollaxis(da.asarray(xi_), axis=-1), axis=-1)
         yi_ = da.rollaxis(da.rollaxis(da.asarray(yi_), axis=-1), axis=-1)
@@ -127,32 +127,40 @@ def process_new(zhh14, x, y, time):
     x = x[:, 0, :, :]
     img_filtered = lee_filter_new(zhh14, size=3, tresh=-200)
     img, xi, yi = regridd(img_filtered, x, y)
-    if zhh14.ndim > 2:
-        rnd = random.randint(0, img.shape[-1] - 1)
-        total, _x, _y = regridd(img_filtered[:, :, rnd], x[:, :, rnd], y[:, :, rnd])
-        total = da.nansum(da.where(total >= 0, 1, 0), axis=1)
-    else:
-        total = da.nansum(da.where(img >= 0, 1, 0), axis=1)  # Total of number of pixels
-    num_pixels = [i for i in (da.rollaxis(da.nansum(da.where(img > 0, 1, np.nan), axis=1), -1).compute())]
-    num_pixels = pd.DataFrame({'num_pix': num_pixels}, index=pd.to_datetime(time))
+    px_tot, _, _ = regridd(np.ones_like(zhh14), x, y)
+    px_tot = np.where(px_tot < 0.99, 0, px_tot)
+    px_tot = np.apply_along_axis(np.count_nonzero, arr=px_tot, axis=1)
+    num_px = np.apply_along_axis(np.count_nonzero, arr=img, axis=1)
     img = np.where(img > 0., img, 0.)
     blurred = gaussian(img, sigma=0.8)
     binary = blurred > threshold_otsu(blurred)
     labels = measure.label(binary)
-    if labels.ndim > 2:
-        props = [measure.regionprops(labels[:, :, i]) for i in range(labels.shape[-1])]
-        _props_all = [[[j.area for j in prop], [j.perimeter for j in prop], [j.major_axis_length for j in prop],
-                       [j.minor_axis_length for j in prop], [j.bbox for j in prop]] for prop in props]
-        df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox'],
-                          index=pd.to_datetime(time))
+    if (labels.ndim > 2) & (zhh14.shape[-1] != 1):
+        max_zhh14 = np.apply_along_axis(np.max, arr=img, axis=0).compute()
+        max_zhh14 = np.apply_along_axis(np.max, arr=max_zhh14, axis=0)
+        df_max_zhh = pd.Series(max_zhh14, index=time, name='max_zhh')
+        df_num_px = pd.DataFrame(np.moveaxis(num_px.compute(), 0, -1), index=time)
+        df_num_px.columns = pd.MultiIndex.from_product([['num_px'], df_num_px.columns])
+        df_tot = pd.DataFrame(np.moveaxis(px_tot.compute(), 0, -1), index=time)
+        df_tot.columns = pd.MultiIndex.from_product([['tot_px'], df_tot.columns])
+        tab_props = [measure.regionprops_table(labels[:, :, i], img[:, :, i],
+                                               properties=['area', 'perimeter', 'bbox', 'major_axis_length',
+                                                           'minor_axis_length']) for i in range(labels.shape[-1])]
+
+        df = pd.DataFrame(data=tab_props, index=pd.to_datetime(time))
+        df = df.merge(df_max_zhh, left_index=True, right_index=True)
+        df = df.merge(df_num_px, left_index=True, right_index=True)
+        df = df.merge(df_tot, left_index=True, right_index=True)
     else:
-        props = measure.regionprops(labels)
-        _props_all = [[[prop.area], [prop.perimeter], [prop.major_axis_length], [prop.minor_axis_length],
-                       [prop.bbox]] for prop in props]
-        df = pd.DataFrame(data=_props_all, columns=['area', 'perimeter', 'axmax', 'axmin', 'bbox'], index=time)
-    df['num_px'] = num_pixels.num_pix
-    df.to_csv('../results/all_filtered_01_11_2021.csv')
-    return df.area, df.perimeter, df.axmax, df.axmin, df.bbox, np.asarray(total), df.num_px
+        max_zhh = np.max(img.compute())
+        props = measure.regionprops_table(labels[:, :, 0], img[:, :, 0].compute(),
+                                          properties=['area', 'perimeter', 'bbox', 'major_axis_length',
+                                                      'minor_axis_length'])
+        props['max_zhh'] = max_zhh
+        df = pd.DataFrame(data=props, index=pd.to_datetime(time))
+
+    dates = datetime.now(timezone.utc)
+    df.to_csv(f"../results/all_filtered_{dates:%Y}{dates:%m}{dates:%d}{dates:%H}{dates:%M}.csv")
 
 
 def ufunc_wrapper(data):
@@ -162,31 +170,21 @@ def ufunc_wrapper(data):
     _data = [zhh, x, y, data.time]
     icd = [list(i.dims) for i in _data]
     dfk = {'allow_rechunk': True, 'output_sizes': {}}
-    a, p, mx, mn, bbox, attrs, npx = xr.apply_ufunc(process_new,
-                                                    *_data,
-                                                    input_core_dims=icd,
-                                                    output_core_dims=[["time"], ["time"], ["time"], ["time"], ["time"],
-                                                                      [], []],
-                                                    dask_gufunc_kwargs=dfk,
-                                                    dask='parallelized',
-                                                    vectorize=True,
-                                                    output_dtypes=[(object), (object), (object), (object), (object),
-                                                                   (object), (object)]
-                                                    )
-    ds_out = a.to_dataset(name='area')
-    ds_out['perimeter'] = p
-    ds_out['ax_max'] = mx
-    ds_out['ax_min'] = mn
-    ds_out['bbox'] = bbox
-    ds_out['num_px'] = npx
-    ds_out['attrs'] = attrs
-    return ds_out
+    xr.apply_ufunc(process_new,
+                   *_data,
+                   input_core_dims=icd,
+                   output_core_dims=[[], ],
+                   dask_gufunc_kwargs=dfk,
+                   dask='parallelized',
+                   vectorize=True,
+                   output_dtypes=[]
+                   )
 
 
 def main():
     ds_xr = xr.open_zarr(f'{path_data}/zarr/KUsKAs_Wn/lores.zarr', consolidated=True)
     ds_xr = ds_xr.sel(time=~ds_xr.get_index("time").duplicated())
-    # ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time='2019-09-16 03:12:58')
+    # ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time='2019-09-07 06:33:26')
     ds_data = ds_xr[['zhh14', 'azimuth', 'DR']].sel(time=slice('2019-09-16 03:12:50', '2019-09-16 03:13:05'))
     a = ufunc_wrapper(ds_data)
     w = dask.compute(a)
