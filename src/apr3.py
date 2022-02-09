@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-import glob
-import os
 import h5py
 import xarray as xr
 import numpy as np
-from src.utils import get_pars_from_ini, get_time, make_dir
+import zarr
+from src.utils import get_pars_from_ini, get_time
 from zarr import Blosc
 
 
@@ -135,62 +134,27 @@ def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
     return ds_res
 
 
-def hdf2zar(path_files):
+def ds2zar(ds, store='../zarr/camp2ex.zarr'):
     """
     Functions that converts APR3 hdf5 files into zarr files
-    :param path_files: full path to APR3 hdf5 files. Files must be inside a data folder. e.g. '/{path_files}/data'
-    :return: Create zarr files and a txt files with "good" and "bad" files
+    :param store: zarr store path
+    :param ds: xarray dataset to be stored
+    :return : Creates zarr files in a given location
     """
-    files_dict = {'Wn': glob.glob(f'{path_files}/data/*_Wn.h5'),
-                  'KUsKAsWs': glob.glob(f'{path_files}/data/*_KUsKAsWs.h5'),
-                  'KUsKAs_Wn': glob.glob(f'{path_files}/data/*_KUsKAs.h5') + glob.glob(
-                      f'{path_files}/data/*_KUsKAsWn.h5')}
+    store = zarr.DirectoryStore(store)
+    for key in ds.keys():
+        print(key)
+        args = {'consolidated': True}
+        try:
+            ds[key].to_zarr(store=store, group=key, **args)
+        except zarr.errors.ContainsGroupError:
+            args['mode'] = 'a'
+            if not hasattr(ds[key], 'time'):
+                args['append_dim'] = 'params'
+            else:
+                args['append_dim'] = 'time'
 
-    for key_outer in files_dict:
-        files = files_dict[key_outer]
-        files.sort()
-        if not files:
-            continue
-        make_dir(f'{path_files}/zarr/{key_outer}')
-        with open(f'{path_files}/zarr/{key_outer}/good_files.txt', 'w') as good,  \
-                open(f'{path_files}/zarr/{key_outer}/bad_files.txt', 'w') as bad:
-            for i, file in enumerate(files):
-                print(i, file)
-                ds = hdf2xr(file)
-                args = {'consolidated': True}
-                for key in ds.keys():
-                    if i == 0:
-                        args['mode'] = 'w'
-                    else:
-                        args['mode'] = 'a'
-                        if not hasattr(ds[key], 'time'):
-                            args['append_dim'] = 'params'
-                        else:
-                            args['append_dim'] = 'time'
-                    try:
-                        ds[key].to_zarr(store=f'{path_files}/zarr/{key_outer}/{key}.zarr', **args)
-                        good.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, \n")
-                    except ValueError as e:
-                        tries = 0
-                        while e is not True and not tries > 3:
-                            _var, _num = str(e).split(' ')[1][1:-1], str(e).split(' ')[14][:-1]
-                            args = {'consolidated': True}
-                            if os.path.isdir(f'{path_files}/zarr/{key_outer}/{key}_{_var}_{_num}.zarr'):
-                                args['mode'] = 'a'
-                                if not hasattr(ds[key], 'time'):
-                                    args['append_dim'] = 'params'
-                                else:
-                                    args['append_dim'] = 'time'
-                            else:
-                                args['mode'] = 'w'
-                            ds[key].to_zarr(store=f'{path_files}/zarr/{key_outer}/{key}_{_var}_{_num}.zarr', **args)
-                            tries += 1
-                            e = True
-                            good.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, \n")
-                        bad.writelines(f"{file.split('/')[-1]}, {ds.keys()}, {key}, {e}\n")
-                del ds
-        good.close()
-        bad.close()
+            ds[key].to_zarr(store=store, group=key, **args)
 
 
 def main():
