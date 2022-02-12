@@ -12,8 +12,10 @@ def make_dir(path):
     :param path:
     :return:
     """
-    if not os.path.exists(path):
+    try:
         os.makedirs(path)
+    except FileExistsError:
+        pass
 
 
 def get_pars_from_ini(campaign='camp2ex'):
