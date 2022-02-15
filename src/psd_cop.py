@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+import glob
+
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
 import os
 import numpy as np
-from re import split
+from re import split, findall
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
 
@@ -18,22 +20,24 @@ def moment_nth(sr_nd, dict_diameters, moment):
 def get_date(_file):
     with open(_file, 'r') as f:
         lines = f.readlines()
-        sizes = np.array([int(i[i.find('(') + 1: i.find(')')].replace(' ', '').split('-')[0])
-                 for i in lines[:200] if i.startswith('cbin')])
+
+        sizes = np.array([int(''.join(findall(r"\d+", i[i.find('(') + 1: i.find(')')])[:2])) for i in lines[:200]
+                         if i.startswith('cbin')])
         dsizes = sizes[1:] - sizes[:-1]
         dsizes = np.append(dsizes, dsizes[-1])
         bin_cent = (sizes[1:] - sizes[:-1]) / 2 + sizes[:-1]
         bin_cent = np.append(bin_cent, sizes[-1] + dsizes[-1])
         dt_sizes = {i: j for i, j in zip(bin_cent, dsizes)}
         try:
-            df = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
-            return df, dt_sizes
+            dt = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
+            return dt, dt_sizes
         except ValueError:
-            df = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
-            return df, dt_sizes
+            dt = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
+            return dt, dt_sizes
 
 
-def read_file(_file, _date, skipr=78):
+def read_file(_file, skipr=78):
+    _date, dt_sizes = get_date(_file)
     df_fcdp = pd.read_csv(_file, skiprows=skipr, header=0, na_values=-999)
     df_fcdp.index = df_fcdp.Time_Start.map(lambda x: _date + pd.to_timedelta(x, unit='seconds'))
     return df_fcdp
@@ -50,10 +54,13 @@ def main():
     # _file = f'{path_data}/data/LAWSON_PAUL/HVPS/CAMP2Ex-HVPS_Learjet_20190907_R0_L1.ICT'
 
     _type = _file.split('/')[-1].split('-')[-1].split('_')[0]
+    files = glob.glob(f'{path_data}/data/LAWSON_PAUL/{_type}/CAMP2Ex-{_type}*.ict')
     dt_info = get_pars_from_ini(campaign='psd_params')
+    ls_pd = [read_file(i, skipr=dt_info[_type]['skip_row']) for i in files]
+    df_all = pd.concat(ls_pd)
     # _line = dt_info[_type]['line']
-    _date, dt_sizes = get_date(_file)
-    df_fcdp = read_file(_file, _date, skipr=dt_info[_type]['skip_row'])
+
+    df_fcdp = read_file(_file, skipr=dt_info[_type]['skip_row'])
 
     # Plotting PDS
     list_size = dt_info[_type]['list_size']
