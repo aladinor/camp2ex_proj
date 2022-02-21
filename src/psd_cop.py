@@ -8,7 +8,7 @@ import numpy as np
 from re import split, findall
 import xarray as xr
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
-from src.utils import get_pars_from_ini
+from src.utils import get_pars_from_ini, make_dir
 
 
 def moment_nth(sr_nd, dict_diameters, moment):
@@ -46,7 +46,9 @@ class Ict2df(object):
         df = pd.read_csv(self.path_file, skiprows=self.header, header=0, na_values=[-999, -9.99])
         df['time'] = df.Time_Start.map(lambda x: self.dt + pd.to_timedelta(x, unit='seconds'))
         df['time'] = df['time'].map(lambda x: x.to_datetime64())
-        df.index = df['time']
+        df.index = df['time'].dt.tz_localize('utc')
+        df['local_time'] = df['time'].dt.tz_localize('utc').dt.tz_convert('Asia/Manila')
+        df.drop(columns=['time'], axis=1, inplace=True)
         df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent}
         cols = df.filter(like='cbin', axis=1).columns.tolist()
         names = [f'nsd {self.sizes[i]}-{self.sizes[i+1]}' for i, j in enumerate(self.sizes[:-1])]
@@ -102,9 +104,20 @@ def main():
         files = glob.glob(f'{path_data}/data/LAWSON_PAUL/{_type}/CAMP2Ex-{_type}_{_aircraft}*')
         ls_pd = [Ict2df(i).df for i in files]
         attrs = ls_pd[0].attrs
+        attrs['type'] = _type
+        attrs['aircraft'] = _aircraft
         df_all = pd.concat(ls_pd)
         df_all.attrs = attrs
+        df_all = df_all.sort_index()
         df_all.to_pickle(f'{path_data}/data/LAWSON_PAUL/{_type}/{_type}_{_aircraft}.pkl')
+        if _aircraft == "Learjet":
+            path = f'{path_data}/data/LAWSON_PAUL/{_aircraft}'
+            make_dir(path)
+            df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
+        else:
+            path = f'{path_data}/data/LAWSON_PAUL/{_aircraft}'
+            make_dir(path)
+            df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
     pass
 
 
