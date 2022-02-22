@@ -29,13 +29,13 @@ def main():
 
     ncols = 3
     nrows = int(np.ceil(df1.ngroups / ncols))
-    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(14, 10), sharey=True, sharex=True)
+    fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(10, 12), sharey=True, sharex=True)
     for (key, ax) in zip(df1.groups.keys(), axes.flatten()):
-        for i in df1.get_group(key).filter(like='nsd', axis=1).columns:
-            ax.scatter(df1.get_group(key)[i], df2.get_group(key)[i], s=0.5)
+        for i in df1.get_group(key).filter(like='nsd', axis=1).columns[:10]:
+            ax.scatter(df1.get_group(key)[i]/1000, df2.get_group(key)[i]/1000, s=0.5)
             ax.set_title(f'{key:%Y-%m-%d}')
-            ax.set_xlim(0, 200000)
-            ax.set_ylim(0, 200000)
+            ax.set_xlim(0, 300)
+            ax.set_ylim(0, 300)
             x = np.linspace(*ax.get_xlim())
             ax.plot(x, x, linewidth=0.5)
             # ax.set_aspect('equal')
