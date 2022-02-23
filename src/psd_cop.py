@@ -69,56 +69,27 @@ def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
     path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
 
-    # Data
-    # FCDP - Fast Cloud Droplet Probe (0.0 - 50 um)
-    _file1 = f'{path_data}/data/LAWSON_PAUL/FCDP/CAMP2Ex-FCDP_Learjet_20190907_R1_L1.ict'
-    _file2 = f'{path_data}/data/LAWSON_PAUL/FCDP/CAMP2Ex-FCDP_P3B_20190824_R1.ict'
-
-    # FFSSP - Fast Forward Scattering Spectrometer Probe (0.0 - 50 um)
-    _file3 = f'{path_data}/data/LAWSON_PAUL/Hawk2DS10/CAMP2Ex-FFSSP_Learjet_20190907_R0_L1.ict'
-
-    # 2DS10 - Optical Array Spectrometer (10um - 3mm)
-    _file4 = f'{path_data}/data/LAWSON_PAUL/HVPS/CAMP2Ex-2DS10_Learjet_20190907_R0_L1.ict'
-    _file5 = f'{path_data}/data/LAWSON_PAUL/HVPS/CAMP2Ex-2DS10_P3B_20190925_R0.ict'
-
-    # HVPS - High Volume Precipitation Spectrometer (150um-2cm)
-    _file6 = f'{path_data}/data/LAWSON_PAUL/HVPS/CAMP2Ex-HVPS_Learjet_20190907_R0_L1.ICT'
-    _file7 = f'{path_data}/data/LAWSON_PAUL/HVPS/CAMP2Ex-HVPS_P3B_20190915_R0.ict'
-
-    # Hawk2DS10 - Optical Array Spectrometer on the Hawk instrument (10um - 3mm)
-    _file8 = f'{path_data}/data/LAWSON_PAUL/Hawk2DS10/CAMP2Ex-Hawk2DS10_Learjet_20190907_R0_L1.ict'
-    _file9 = f'{path_data}/data/LAWSON_PAUL/Hawk2DS10/CAMP2Ex-Hawk2DS10_P3B_20190923_R0.ict'
-
-    # Hawk2DS50 - Optical Array Spectrometer on the Hawk instrument (10um - 3mm)
-    _file10 = f'{path_data}/data/LAWSON_PAUL/Hawk2DS50/CAMP2Ex-Hawk2DS50_Learjet_20190907_R0_L1.ict'
-    _file11 = f'{path_data}/data/LAWSON_PAUL/Hawk2DS50/CAMP2Ex-Hawk2DS50_P3B_20190927_R0.ict'
-
-    # HawkFCDP - Fast Cloud Droplet Probe on the Hawk intrument (0.0 - 50 um)
-    _file12 = f'{path_data}/data/LAWSON_PAUL/HawkFCDP/CAMP2Ex-HawkFCDP_P3B_20191005_R1.ict'
-    _file13 = f'{path_data}/data/LAWSON_PAUL/HawkFCDP/CAMP2Ex-HawkFCDP_Learjet_20190913_R1.ict'
-
-    files = [_file1, _file2, _file3, _file4, _file5, _file6, _file7, _file8, _file9, _file10, _file11, _file12, _file13]
-    for _file in files:
-        _type = _file.split('/')[-1].split('-')[-1].split('_')[0]
-        _aircraft = _file.split('/')[-1].split('-')[-1].split('_')[1]
-        files = glob.glob(f'{path_data}/data/LAWSON_PAUL/{_type}/CAMP2Ex-{_type}_{_aircraft}*')
-        ls_pd = [Ict2df(i).df for i in files]
-        attrs = ls_pd[0].attrs
-        attrs['type'] = _type
-        attrs['aircraft'] = _aircraft
-        df_all = pd.concat(ls_pd)
-        df_all.attrs = attrs
-        df_all = df_all.sort_index()
-        df_all.to_pickle(f'{path_data}/data/LAWSON_PAUL/{_type}/{_type}_{_aircraft}.pkl')
-        if _aircraft == "Learjet":
-            path = f'{path_data}/data/LAWSON_PAUL/{_aircraft}'
+    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP']
+    aircraft = ['P3B', 'Learjet']
+    file_type = [f'{path_data}/data/LAWSON.PAUL/{i}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
+    for file in file_type:
+        files = glob.glob(f'{file}*')
+        try:
+            _file = files[0]
+            _type = _file.split('/')[-1].split('-')[-1].split('_')[0]
+            _aircraft = _file.split('/')[-1].split('-')[-1].split('_')[1]
+            ls_pd = [Ict2df(i).df for i in files]
+            attrs = ls_pd[0].attrs
+            attrs['type'] = _type
+            attrs['aircraft'] = _aircraft
+            df_all = pd.concat(ls_pd)
+            df_all.attrs = attrs
+            df_all = df_all.sort_index()
+            path = f'{path_data}/data/LAWSON.PAUL/{_aircraft}/all'
             make_dir(path)
-            df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
-        else:
-            path = f'{path_data}/data/LAWSON_PAUL/{_aircraft}'
-            make_dir(path)
-            df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
-    pass
+            df_all.to_pickle(f'{path_data}/data/LAWSON.PAUL/{_aircraft}/all/{_type}_{_aircraft}.pkl')
+        except IndexError:
+            pass
 
 
 if __name__ == '__main__':
