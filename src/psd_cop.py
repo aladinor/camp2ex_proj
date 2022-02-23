@@ -28,19 +28,28 @@ class Ict2df(object):
         with open(self.path_file, 'r') as f:
             lines = f.readlines()
             header, file_type = findall(r"\d*\.\d+|\d+", lines[0])
-            sizes = np.array([float(''.join(findall(r"\d*\.\d+|\d+", i[i.find('(') + 1: i.find(')')])[:1]))
-                              for i in lines[:200] if i.startswith('cbin')])
-            dsizes = sizes[1:] - sizes[:-1]
-            dsizes = np.append(dsizes, dsizes[-1])
-            bin_cent = (sizes[1:] - sizes[:-1]) / 2 + sizes[:-1]
-            bin_cent = np.append(bin_cent, sizes[-1] + dsizes[-1])
-            dt_sizes = {i: j for i, j in zip(bin_cent, dsizes)}
             try:
-                dt = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
-                return dt, dt_sizes, sizes, int(header) - 1, file_type, bin_cent
-            except ValueError:
-                dt = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
-                return dt, dt_sizes, sizes, int(header) - 1, file_type, bin_cent
+                sizes = np.array([float(''.join(findall(r"\d*\.\d+|\d+", i[i.find('(') + 1: i.find(')')])[:1]))
+                                  for i in lines[:200] if i.startswith('cbin')])
+                dsizes = sizes[1:] - sizes[:-1]
+                dsizes = np.append(dsizes, dsizes[-1])
+                bin_cent = (sizes[1:] - sizes[:-1]) / 2 + sizes[:-1]
+                bin_cent = np.append(bin_cent, sizes[-1] + dsizes[-1])
+                dt_sizes = {i: j for i, j in zip(bin_cent, dsizes)}
+                try:
+                    dt = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
+                    return dt, dt_sizes, sizes, int(header) - 1, file_type, bin_cent
+                except ValueError:
+                    dt = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
+                    return dt, dt_sizes, sizes, int(header) - 1, file_type, bin_cent
+            except IndexError:
+                try:
+                    dt = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
+                    return dt, None, None, int(header) - 1, file_type, None
+                except ValueError:
+                    dt = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
+                    return dt, None, None, int(header) - 1, file_type, None
+            pass
 
     def _read_file(self):
         df = pd.read_csv(self.path_file, skiprows=self.header, header=0, na_values=[-999, -9.99])
@@ -50,12 +59,15 @@ class Ict2df(object):
         df['local_time'] = df['time'].dt.tz_localize('utc').dt.tz_convert('Asia/Manila')
         df.drop(columns=['time'], axis=1, inplace=True)
         df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent}
-        cols = df.filter(like='cbin', axis=1).columns.tolist()
-        names = [f'nsd {self.sizes[i]}-{self.sizes[i+1]}' for i, j in enumerate(self.sizes[:-1])]
-        names.append(f'>{self.sizes[-1]}')
-        dt_cols = {j: names[i] for i, j in enumerate(cols)}
-        df = df.rename(columns=dt_cols)
-        return df
+        try:
+            cols = df.filter(like='cbin', axis=1).columns.tolist()
+            names = [f'nsd {self.sizes[i]}-{self.sizes[i + 1]}' for i, j in enumerate(self.sizes[:-1])]
+            names.append(f'>{self.sizes[-1]}')
+            dt_cols = {j: names[i] for i, j in enumerate(cols)}
+            df = df.rename(columns=dt_cols)
+            return df
+        except TypeError:
+            return df
 
 
 def pd2xr(df_concat, example):
@@ -69,7 +81,7 @@ def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
     path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
 
-    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP']
+    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
     aircraft = ['P3B', 'Learjet']
     file_type = [f'{path_data}/data/LAWSON.PAUL/{i}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
     for file in file_type:
