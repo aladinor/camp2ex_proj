@@ -83,7 +83,7 @@ def main():
 
     instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
     aircraft = ['P3B', 'Learjet']
-    file_type = [f'{path_data}/data/LAWSON.PAUL/{i}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
+    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
     for file in file_type:
         files = glob.glob(f'{file}*')
         try:
@@ -97,9 +97,9 @@ def main():
             df_all = pd.concat(ls_pd)
             df_all.attrs = attrs
             df_all = df_all.sort_index()
-            path = f'{path_data}/data/LAWSON.PAUL/{_aircraft}/all'
+            path = f'{path_data}/data/LAWSON.PAUL/{_aircraft.upper()}/all'
             make_dir(path)
-            df_all.to_pickle(f'{path_data}/data/LAWSON.PAUL/{_aircraft}/all/{_type}_{_aircraft}.pkl')
+            df_all.to_pickle(f'{path_data}/data/LAWSON.PAUL/{_aircraft.upper()}/all/{_type}_{_aircraft}.pkl')
         except IndexError:
             pass
 
