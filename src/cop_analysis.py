@@ -33,6 +33,33 @@ def plot_scatter(df1, df2, fcdp, path_data, var):
     plt.show()
 
 
+def plot_scatter_size(df1, df2, fcdp, path_data):
+    df1_gr = df1.groupby(df1['local_time'].dt.floor('D'))  # FCDP
+    df2_gr = df2.groupby(df2['local_time'].dt.floor('D'))  # HawkFCDP
+    ncols = 4
+    nrows = int(np.ceil(df1_gr.ngroups / ncols))
+
+    for i in df1.filter(like='nsd', axis=1).columns:
+        fig, axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=(12, 8), sharey=True, sharex=True)
+        for (key, ax) in zip(df1_gr.groups.keys(), axes.flatten()):
+            ax.scatter(df1_gr.get_group(key)[i]/1000, df2_gr.get_group(key)[i]/1000, s=0.5)
+            ax.set_title(f'{key:%Y-%m-%d}')
+            ax.set_xlim(0, 500)
+            ax.set_ylim(0, 500)
+            x = np.linspace(*ax.get_xlim())
+            ax.plot(x, x, linewidth=0.5)
+        fig.supxlabel("$FCDP - Concentration \ (\#  L^{-1} \mu m^{-1})$")
+        fig.supylabel("$HawkFCDP - Concentration \ (\#  L^{-1} \mu m^{-1})$")
+        fig.suptitle(f"Range {i[4:]} (um)")
+        fig.tight_layout()
+        plt.show()
+        print(1)
+    save = f"{path_data}/results/LAWSON.PAUL/{fcdp[0].attrs['aircraft']}/{fcdp[0].attrs['type']}"
+    make_dir(save)
+    # fig.savefig(f"{save}/{fcdp[0].attrs['type']}_{var}.png")
+    # plt.show()
+
+
 def plot_nsd(lear_df, _idx):
     fig, ax = plt.subplots()
     for i in lear_df[:-1]:
@@ -50,7 +77,6 @@ def plot_nsd(lear_df, _idx):
     plt.show()
 
 
-
 def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
     path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
@@ -65,7 +91,9 @@ def main():
     fcdp = [i for i in lear_df if (i.attrs['type'] == 'FCDP') | (i.attrs['type'] == 'HawkFCDP') |
             (i.attrs['type'] == 'Page0')]
     df1 = pd.merge(fcdp[0], fcdp[2][['Temp']], left_index=True, right_index=True)
+    df1.attrs = fcdp[0].attrs
     df2 = pd.merge(fcdp[1], fcdp[2][['Temp']], left_index=True, right_index=True)
+    df2.attrs = fcdp[1].attrs
     temp = None
     # temp = 2
     # var = 'conc'
@@ -77,6 +105,7 @@ def main():
     df1 = df1.loc[idx]
     df2 = df2.loc[idx]
     # plot_scatter(df1, df2, fcdp, path_data, var)
+    plot_scatter_size(df1, df2, fcdp, path_data)
     _idx = lear_df[0][lear_df[0]['conc'] > 1000000].filter(like='nsd').index[0]
     plot_nsd(lear_df, _idx)
     print(1)
