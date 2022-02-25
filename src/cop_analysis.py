@@ -5,7 +5,7 @@ from re import split
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-
+import random
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
 
@@ -94,8 +94,8 @@ def main():
     df1.attrs = fcdp[0].attrs
     df2 = pd.merge(fcdp[1], fcdp[2][['Temp']], left_index=True, right_index=True)
     df2.attrs = fcdp[1].attrs
-    temp = None
-    # temp = 2
+    # temp = None
+    temp = 2
     # var = 'conc'
     var = 'nsd'
     if temp:
@@ -105,8 +105,8 @@ def main():
     df1 = df1.loc[idx]
     df2 = df2.loc[idx]
     # plot_scatter(df1, df2, fcdp, path_data, var)
-    plot_scatter_size(df1, df2, fcdp, path_data)
-    _idx = lear_df[0][lear_df[0]['conc'] > 1000000].filter(like='nsd').index[0]
+    # plot_scatter_size(df1, df2, fcdp, path_data)
+    _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
     plot_nsd(lear_df, _idx)
     print(1)
 
