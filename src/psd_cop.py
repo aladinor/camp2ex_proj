@@ -70,38 +70,40 @@ class Ict2df(object):
             return df
 
 
-def pd2xr(df_concat, example):
-    ds = xr.Dataset.from_dataframe(df_concat)
-    ds.attrs['dt_sizes'] = example.dt_sizes
-    ds.attrs['ls_sizes'] = example.sizes
-    return ds
+def ict2pkl(files, path_save):
+    try:
+        _file = files[0]
+        _type = _file.split('/')[-1].split('-')[-1].split('_')[0]
+        _aircraft = _file.split('/')[-1].split('-')[-1].split('_')[1]
+        ls_pd = [Ict2df(i).df for i in files]
+        attrs = ls_pd[0].attrs
+        attrs['type'] = _type
+        attrs['aircraft'] = _aircraft
+        df_all = pd.concat(ls_pd)
+        df_all.attrs = attrs
+        df_all = df_all.sort_index()
+        path = f'{path_save}/{_aircraft.upper()}/all'
+        make_dir(path)
+        df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
+    except IndexError:
+        pass
 
 
 def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
     path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
 
-    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
-    aircraft = ['P3B', 'Learjet']
-    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
-    for file in file_type:
-        files = glob.glob(f'{file}*')
-        try:
-            _file = files[0]
-            _type = _file.split('/')[-1].split('-')[-1].split('_')[0]
-            _aircraft = _file.split('/')[-1].split('-')[-1].split('_')[1]
-            ls_pd = [Ict2df(i).df for i in files]
-            attrs = ls_pd[0].attrs
-            attrs['type'] = _type
-            attrs['aircraft'] = _aircraft
-            df_all = pd.concat(ls_pd)
-            df_all.attrs = attrs
-            df_all = df_all.sort_index()
-            path = f'{path_data}/data/LAWSON.PAUL/{_aircraft.upper()}/all'
-            make_dir(path)
-            df_all.to_pickle(f'{path_data}/data/LAWSON.PAUL/{_aircraft.upper()}/all/{_type}_{_aircraft}.pkl')
-        except IndexError:
-            pass
+    # instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
+    # aircraft = ['P3B', 'Learjet']
+    # file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
+    # path_save = f'{path_data}/data/LAWSON.PAUL'
+    # for file in file_type:
+    #     files = glob.glob(f'{file}*')
+    #     ict2pkl(files, path_save)
+
+    files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
+    path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
+    ict2pkl(files, path_save=path_save)
 
 
 if __name__ == '__main__':
