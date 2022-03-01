@@ -84,16 +84,19 @@ def get_seconds(aircraft, ls_sensor, day, _hour, minute):
         ls_df = [i[i['local_time'].dt.minute == pd.to_datetime(_hour).minute]
                  for i in ls_df]
         _secs = sorted(set(np.concatenate([i['local_time'].dt.floor('s').unique() for i in ls_df]).flat))
-        marks = {i: f"{i}s" for i in range(len(_secs))}
-        return min(_secs).second, max(_secs).second, marks
-
-
+        return min(_secs).second, max(_secs).second
+    elif aircraft == 'Learjet':
+        ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
+                 for i in lear_df if i.attrs['type'] in ls_sensor]
+        ls_df = [i[i['local_time'].dt.hour == pd.to_datetime(_hour).hour]
+                 for i in ls_df]
+        ls_df = [i[i['local_time'].dt.minute == pd.to_datetime(_hour).minute]
+                 for i in ls_df]
+        _secs = sorted(set(np.concatenate([i['local_time'].dt.floor('s').unique() for i in ls_df]).flat))
+        return min(_secs).second, max(_secs).second
 
 
 def main():
-    # df = get_df(['FCDP'], p3_df)
-    time = get_time(p3_df[0])
-    print(1)
     pass
 
 

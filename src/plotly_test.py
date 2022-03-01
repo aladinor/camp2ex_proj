@@ -56,7 +56,6 @@ LEFT_COLUMN = dbc.Col(
             size="sm",
         ),
         html.Br(),
-        html.Br(),
 
         html.Label("Sensor", style={"marginTop": 20}, className="lead"),
         dcc.Dropdown(
@@ -79,7 +78,6 @@ LEFT_COLUMN = dbc.Col(
             placeholder="Day",
             searchable=True,
         ),
-        html.Br(),
         dbc.Button(
             id="filter-day",
             n_clicks=0,
@@ -126,17 +124,22 @@ LEFT_COLUMN = dbc.Col(
             size="sm",
         ),
 
+        html.Br(),
+        html.Br(),
+
+        html.Label("Seconds slider", className="lead"),
         html.Div([
             dcc.Slider(
                 min=0,
                 max=10,
                 step=1,
-                marks={i: f'{i}s' for i in range(11)},
-                id='time-slider'
+                id='time-slider',
+                tooltip={"placement": "bottom", "always_visible": True},
+                marks=None
             ),
-            html.Div(
-                id='slider-output-container'
-            )
+            # html.Div(
+            #     id='slider-output-container',
+            #     )
         ])
     ]
 )
@@ -250,7 +253,6 @@ def update_minutes(n_clicks, aircraft=None, sensor=None, date=None, hour=None):
 @app.callback(
     Output('time-slider', 'min'),
     Output('time-slider', 'max'),
-    Output('time-slider', 'marks'),
     [
         Input("filter-minute", "n_clicks")
     ],
