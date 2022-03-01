@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc
+from dash import html
 import dash_bootstrap_components as dbc
-from src.backend import dt_sensor, dt_day, dt_aircraft
+from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
+from datetime import date
 
 PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
 
@@ -16,7 +17,7 @@ NAVBAR = dbc.Navbar(
             # Use row and col to control vertical alignment of logo / brand
             dbc.Row(
                 [
-                    dbc.Col(html.Img(src=PLOTLY_LOGO, height="30px")),
+                    dbc.Col(html.Img(src=PLOTLY_LOGO, height="50px")),
                     dbc.Col(
                         dbc.NavbarBrand("CAMP2Ex cloud probes", className="ml-2")
                     ),
@@ -33,19 +34,9 @@ NAVBAR = dbc.Navbar(
 
 LEFT_COLUMN = dbc.Col(
     [
+
         html.H4(children="Filter option", className="display-5"),
         html.Hr(className="my-2"),
-
-        html.Label("Date", className="lead"),
-        dcc.Dropdown(
-            id="drop-days",
-            clearable=True,
-            multi=False,
-            style={"marginBottom": 10, "font-size": 12},
-            options=dt_day,
-            placeholder="Day",
-            searchable=True,
-        ),
 
         html.Label("Aircraf", style={"marginTop": 20}, className="lead"),
         dcc.Dropdown(
@@ -58,30 +49,100 @@ LEFT_COLUMN = dbc.Col(
             searchable=True
         ),
 
-        html.Label("Sensor", style={"marginTop": 20}, className="lead"),
-        dcc.Dropdown(
-            id="drop-sensor",
-            clearable=True,
-            multi=True,
-            style={"marginBottom": 10, "font-size": 12},
-            options=dt_sensor,
-            placeholder="Cloud probe",
-            searchable=True
-        ),
-
         dbc.Button(
-            id="submit-dpto",
+            id="filter-aircraft",
             n_clicks=0,
             children='Send',
             size="sm",
         ),
         html.Br(),
         html.Br(),
+
+        html.Label("Sensor", style={"marginTop": 20}, className="lead"),
+        dcc.Dropdown(
+            id="drop-sensor",
+            clearable=True,
+            multi=True,
+            style={"marginBottom": 10, "font-size": 12},
+            # options=dt_sensor,
+            placeholder="Cloud probe",
+            searchable=True
+        ),
+
+        html.Label("Date", className="lead"),
+        dcc.Dropdown(
+            id="drop-days",
+            clearable=True,
+            multi=False,
+            style={"marginBottom": 10, "font-size": 12},
+            # options=dt_day,
+            placeholder="Day",
+            searchable=True,
+        ),
+        html.Br(),
+        dbc.Button(
+            id="filter-day",
+            n_clicks=0,
+            children='Send',
+            size="sm",
+        ),
+        html.Br(),
+        html.Br(),
+
+        html.Label("Hour", className="lead"),
+        dcc.Dropdown(
+            id="drop-hour",
+            clearable=True,
+            multi=False,
+            style={"marginBottom": 10, "font-size": 12},
+            placeholder="Hour",
+            searchable=True,
+        ),
+
+        dbc.Button(
+            id="filter-hour",
+            n_clicks=0,
+            children='Send',
+            size="sm",
+        ),
+
+        html.Br(),
+        html.Br(),
+
+        html.Label("Minute", className="lead"),
+        dcc.Dropdown(
+            id="drop-minute",
+            clearable=True,
+            multi=False,
+            style={"marginBottom": 10, "font-size": 12},
+            placeholder="Hour",
+            searchable=True,
+        ),
+
+        dbc.Button(
+            id="filter-minute",
+            n_clicks=0,
+            children='Send',
+            size="sm",
+        ),
+
+        html.Div([
+            dcc.Slider(
+                min=0,
+                max=10,
+                step=1,
+                marks={i: f'{i}s' for i in range(11)},
+                id='time-slider'
+            ),
+            html.Div(
+                id='slider-output-container'
+            )
+        ])
     ]
 )
 
 MIDDLE_COLUMN = [
-    dbc.CardHeader(html.H5("Resultados de la consulta")),
+    dbc.CardHeader(html.H5("Results")),
     dbc.CardBody(
         [
             dcc.Loading(
@@ -104,7 +165,6 @@ MIDDLE_COLUMN = [
     ),
 ]
 
-
 BODY = dbc.Container(
     [
         dbc.Row(
@@ -118,8 +178,98 @@ BODY = dbc.Container(
     ],
     className="mt-12",
 )
+
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.layout = html.Div(children=[NAVBAR, BODY])
+
+
+@app.callback(
+    Output("drop-sensor", "options"),
+    Output("drop-days", "options"),
+    [
+        Input("filter-aircraft", "n_clicks")
+    ],
+    [
+        State("drop-aircraft", "value")
+    ]
+)
+def update_sensor_day(n_clicks, aircraft):
+    if not n_clicks:
+        raise PreventUpdate
+    else:
+        if aircraft:
+            sensor, _date = get_sensors(aircraft)
+            return sensor, _date
+        else:
+            return []
+
+
+@app.callback(
+    Output('drop-hour', "options"),
+    [
+        Input("filter-day", "n_clicks")
+    ],
+    [
+        State("drop-aircraft", "value"),
+        State("drop-sensor", "value"),
+        State("drop-days", "value")
+    ]
+)
+def update_hour(n_clicks, aircraft=None, sensor=None, date=None):
+    if not n_clicks:
+        raise PreventUpdate
+    else:
+        if (sensor is None) or (date is None) or (aircraft is None):
+            raise PreventUpdate
+        else:
+            return get_hour(aircraft=aircraft, ls_sensor=sensor, day=date)
+
+
+@app.callback(
+    Output('drop-minute', "options"),
+    [
+        Input("filter-hour", "n_clicks")
+    ],
+    [
+        State("drop-aircraft", "value"),
+        State("drop-sensor", "value"),
+        State("drop-days", "value"),
+        State("drop-hour", "value")
+    ]
+)
+def update_minutes(n_clicks, aircraft=None, sensor=None, date=None, hour=None):
+    if not n_clicks:
+        raise PreventUpdate
+    else:
+        if (sensor is None) or (date is None) or (aircraft is None) or (hour is None):
+            raise PreventUpdate
+        else:
+            return get_minutes(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour)
+
+
+@app.callback(
+    Output('time-slider', 'min'),
+    Output('time-slider', 'max'),
+    Output('time-slider', 'marks'),
+    [
+        Input("filter-minute", "n_clicks")
+    ],
+    [
+        State("drop-aircraft", "value"),
+        State("drop-sensor", "value"),
+        State("drop-days", "value"),
+        State("drop-hour", "value"),
+        State("drop-minute", "value"),
+    ]
+)
+def update_slider(n_clicks, aircraft=None, sensor=None, date=None, hour=None, minute=None):
+    if not n_clicks:
+        raise PreventUpdate
+    else:
+        if (sensor is None) or (date is None) or (aircraft is None) or (hour is None) or (minute is None):
+            raise PreventUpdate
+        else:
+            return get_seconds(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour, minute=minute)
 
 
 def wait_for():
