@@ -60,10 +60,11 @@ def plot_scatter_size(df1, df2, fcdp, path_data):
     # plt.show()
 
 
-def plot_nsd(lear_df, _idx):
+def plot_nsd(df, _idx):
     fig, ax = plt.subplots()
-    for i in lear_df[:-1]:
-        x = i.attrs['sizes'][1:]
+    for i in df:
+        _o = i.attrs['type']
+        x = i.attrs['sizes']
         y = i[i.index == _idx].filter(like='nsd').iloc[0].values
         y = np.where(y > 0, y, np.nan)
         ax.step(x, y, label=i.attrs['type'])
@@ -75,19 +76,36 @@ def plot_nsd(lear_df, _idx):
     ax.set_xlabel(f"$Diameter \ (\mu m)$")
     ax.set_ylabel("$Concentration \ (\#  L^{-1} \mu m^{-1})$")
     plt.show()
+    print(1)
 
 
 def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
     path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+
     ls_p3 = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
     ls_learjet = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
+    p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/*pkl')
+    p3_temp = pd.read_pickle(p3_merged[0])
     p3_df = [pd.read_pickle(i) for i in ls_p3]
-    days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
-                                 'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
+    attrs = [i.attrs for i in p3_df]
+    p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True) for i in p3_df]
+    temp = 2
+    for i, df in enumerate(p3_df):
+        df.attrs = attrs[i]
+        df.rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
+        if temp:
+            df = df[df['Temp'] >= 0]
+        p3_df[i] = df
+    _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
+    plot_nsd(p3_df, _idx)
+    # days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
+    #                              'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
+
     lear_df = [pd.read_pickle(i) for i in ls_learjet]
-    days_lear = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
-                                   'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in lear_df}
+    # days_lear = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
+    #                                'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in lear_df}
+
     fcdp = [i for i in lear_df if (i.attrs['type'] == 'FCDP') | (i.attrs['type'] == 'HawkFCDP') |
             (i.attrs['type'] == 'Page0')]
     df1 = pd.merge(fcdp[0], fcdp[2][['Temp']], left_index=True, right_index=True)
