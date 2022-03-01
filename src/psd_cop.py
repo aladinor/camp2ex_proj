@@ -62,7 +62,7 @@ class Ict2df(object):
         try:
             cols = df.filter(like='cbin', axis=1).columns.tolist()
             names = [f'nsd {self.sizes[i]}-{self.sizes[i + 1]}' for i, j in enumerate(self.sizes[:-1])]
-            names.append(f'>{self.sizes[-1]}')
+            names.append(f'nsd >{self.sizes[-1]}')
             dt_cols = {j: names[i] for i, j in enumerate(cols)}
             df = df.rename(columns=dt_cols)
             return df
@@ -95,11 +95,13 @@ def main():
 
     # instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
     # aircraft = ['P3B', 'Learjet']
-    # file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
-    # path_save = f'{path_data}/data/LAWSON.PAUL'
-    # for file in file_type:
-    #     files = glob.glob(f'{file}*')
-    #     ict2pkl(files, path_save)
+    instruments = ['Hawk2DS50']
+    aircraft = ['P3B']
+    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
+    path_save = f'{path_data}/data/LAWSON.PAUL'
+    for file in file_type:
+        files = glob.glob(f'{file}*')
+        ict2pkl(files, path_save)
 
     files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
     path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
