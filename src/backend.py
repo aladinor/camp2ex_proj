@@ -116,24 +116,15 @@ def plot_nsd(aircraft, ls_sensor, day, _hour, minute, second):
             y = np.where(y > 0, y, np.nan)
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
         fig.update_traces(mode="lines", line_shape="vh")
-        fig.update_xaxes(title_text="x-axis in logarithmic scale", type="log")
-        fig.update_yaxes(title_text="y-axis in logarithmic scale", type="log")
-        fig.update_layout(width=1100, height=700)
+        fig.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log")
+        fig.update_xaxes(title_text="Diameter (um)", type="log")
+        fig.update_layout(width=1100, height=700, title={
+                                                         'text': f"{_idx: %Y-%m-%d %H:%M:%S} - {aircraft}",
+                                                         'x': 0.5,
+                                                         'xanchor': 'center'})
+        # fig.update_traces(yaxis_showgrid=False)
+        fig.update_traces(xaxis_showgrid=True, selector={'secondary_x': True})
         return fig
-    # for i in ls_df:
-    #     _o = i.attrs['type']
-    #     x = i.attrs['sizes']
-    #     y = i[i.index == _idx.tz_convert('UTC')].filter(like='nsd').iloc[0].values
-    #     y = np.where(y > 0, y, np.nan)
-    #     ax.step(x, y, label=i.attrs['type'])
-    # ax.legend()
-    # ax.set_yscale('log')
-    # ax.set_xscale('log')
-    # ax.xaxis.grid(which='both')
-    # ax.set_title(f"{_idx: %Y-%m-%d %H:%M:%S} (UTC) - {i.attrs['aircraft']}")
-    # ax.set_xlabel(f"$Diameter \ (\mu m)$")
-    # ax.set_ylabel("$Concentration \ (\#  L^{-1} \mu m^{-1})$")
-    # return fig
 
 
 def main():
