@@ -4,7 +4,7 @@ import dash
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
-from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds
+from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
 from datetime import date
@@ -63,7 +63,6 @@ LEFT_COLUMN = dbc.Col(
             clearable=True,
             multi=True,
             style={"marginBottom": 10, "font-size": 12},
-            # options=dt_sensor,
             placeholder="Cloud probe",
             searchable=True
         ),
@@ -74,7 +73,6 @@ LEFT_COLUMN = dbc.Col(
             clearable=True,
             multi=False,
             style={"marginBottom": 10, "font-size": 12},
-            # options=dt_day,
             placeholder="Day",
             searchable=True,
         ),
@@ -136,11 +134,16 @@ LEFT_COLUMN = dbc.Col(
                 id='time-slider',
                 tooltip={"placement": "bottom", "always_visible": True},
                 marks=None
-            ),
-            # html.Div(
-            #     id='slider-output-container',
-            #     )
-        ])
+                ),
+            ]
+        ),
+        html.Br(),
+        dbc.Button(
+            id="submit",
+            n_clicks=0,
+            children='Submit',
+            size="sm",
+        ),
     ]
 )
 
@@ -159,7 +162,7 @@ MIDDLE_COLUMN = [
                         color="warning",
                         style={"display": "none"},
                     ),
-                    # dcc.Graph(id='plot-map', style=dict(aling='centered')),
+                    dcc.Graph(id='plot-map', style=dict(aling='centered')),
                     # dcc.Graph(id="plot-table"),
                 ],
             )
@@ -272,6 +275,31 @@ def update_slider(n_clicks, aircraft=None, sensor=None, date=None, hour=None, mi
             raise PreventUpdate
         else:
             return get_seconds(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour, minute=minute)
+
+
+@app.callback(
+    Output('plot-map', 'figure'),
+    [
+        Input("submit", "n_clicks")
+    ],
+    [
+        State("drop-aircraft", "value"),
+        State("drop-sensor", "value"),
+        State("drop-days", "value"),
+        State("drop-hour", "value"),
+        State("drop-minute", "value"),
+        State("time-slider", "value"),
+    ]
+)
+def update_figure(n_clicks, aircraft=None, sensor=None, date=None, hour=None, minute=None, second=None):
+    if not n_clicks:
+        raise PreventUpdate
+    else:
+        if (sensor is None) or (date is None) or (aircraft is None) or (hour is None) or (minute is None) \
+                or (second is None):
+            raise PreventUpdate
+        else:
+            return plot_nsd(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour, minute=minute, second=second)
 
 
 def wait_for():

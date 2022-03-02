@@ -5,6 +5,8 @@ import pandas as pd
 import glob
 import os
 import sys
+import plotly.express as px
+import plotly.graph_objects as go
 from re import split
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
@@ -30,8 +32,7 @@ def get_sensors(aircraft: str) -> list:
         _day = sorted(set(np.concatenate([i.local_time.dt.floor('D').unique() for i in p3_df]).flat))
         _hour = sorted(set(np.concatenate([i.local_time.dt.floor('h').unique() for i in p3_df]).flat))
         date_opt = [{'label': f'{i: %Y-%m-%d}', 'value': i} for i in _day]
-        # hour_opt = [{'label': f'{i: %H:%M}', 'value': i} for i in _hour]
-        return sensor_opt, date_opt, #  hour_opt
+        return sensor_opt, date_opt
     elif aircraft == 'Learjet':
         sensor_opt = [{"label": f"{i.attrs['type']}", "value": f"{i.attrs['type']}"} for i in lear_df
                       if i.attrs['type'] != 'Page0']
@@ -94,6 +95,45 @@ def get_seconds(aircraft, ls_sensor, day, _hour, minute):
                  for i in ls_df]
         _secs = sorted(set(np.concatenate([i['local_time'].dt.floor('s').unique() for i in ls_df]).flat))
         return min(_secs).second, max(_secs).second
+
+
+def plot_nsd(aircraft, ls_sensor, day, _hour, minute, second):
+    if aircraft == 'P3B':
+        ls_df = [i for i in p3_df if i.attrs['type'] in ls_sensor]
+        _idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
+    else:
+        ls_df = [i for i in lear_df if i.attrs['type'] in ls_sensor]
+        _idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
+
+    if len(ls_df) == 0:
+        fig = px.line()
+        return fig
+    else:
+        fig = go.Figure()
+        for i in ls_df:
+            x = i.attrs['sizes']
+            y = i[i.index == _idx.tz_convert('UTC')].filter(like='nsd').iloc[0].values
+            y = np.where(y > 0, y, np.nan)
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
+        fig.update_traces(mode="lines", line_shape="vh")
+        fig.update_xaxes(title_text="x-axis in logarithmic scale", type="log")
+        fig.update_yaxes(title_text="y-axis in logarithmic scale", type="log")
+        fig.update_layout(width=1100, height=700)
+        return fig
+    # for i in ls_df:
+    #     _o = i.attrs['type']
+    #     x = i.attrs['sizes']
+    #     y = i[i.index == _idx.tz_convert('UTC')].filter(like='nsd').iloc[0].values
+    #     y = np.where(y > 0, y, np.nan)
+    #     ax.step(x, y, label=i.attrs['type'])
+    # ax.legend()
+    # ax.set_yscale('log')
+    # ax.set_xscale('log')
+    # ax.xaxis.grid(which='both')
+    # ax.set_title(f"{_idx: %Y-%m-%d %H:%M:%S} (UTC) - {i.attrs['aircraft']}")
+    # ax.set_xlabel(f"$Diameter \ (\mu m)$")
+    # ax.set_ylabel("$Concentration \ (\#  L^{-1} \mu m^{-1})$")
+    # return fig
 
 
 def main():
