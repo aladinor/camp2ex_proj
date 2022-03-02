@@ -122,7 +122,6 @@ def plot_nsd(aircraft, ls_sensor, day, _hour, minute, second):
                                                          'text': f"{_idx: %Y-%m-%d %H:%M:%S} - {aircraft}",
                                                          'x': 0.5,
                                                          'xanchor': 'center'})
-        # fig.update_traces(yaxis_showgrid=False)
         fig.update_traces(xaxis_showgrid=True, selector={'secondary_x': True})
         return fig
 

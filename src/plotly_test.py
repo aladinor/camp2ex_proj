@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import dash
 from dash import dcc
@@ -7,7 +7,6 @@ import dash_bootstrap_components as dbc
 from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
-from datetime import date
 
 PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
 
