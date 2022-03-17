@@ -20,17 +20,17 @@ def plot_scatter(df1, df2, fcdp, path_data, var):
         for i in df1_gr.get_group(key).filter(like=var, axis=1).columns[:10]:
             ax.scatter(df1_gr.get_group(key)[i]/1000, df2_gr.get_group(key)[i]/1000, s=0.5)
             ax.set_title(f'{key:%Y-%m-%d}')
-            ax.set_xlim(0, 600)
-            ax.set_ylim(0, 600)
+            ax.set_xlim(0, 1000)
+            ax.set_ylim(0, 1000)
             x = np.linspace(*ax.get_xlim())
             ax.plot(x, x, linewidth=0.5)
-    fig.supxlabel('FCDP (#/cc)')
-    fig.supylabel('HawkFCDP (#/cc)')
+    fig.supxlabel(f"{df1.attrs['type']} (#/cc)")
+    fig.supylabel(f"{df2.attrs['type']} (#/cc)")
     fig.tight_layout()
-    save = f"{path_data}/results/LAWSON.PAUL/{fcdp[0].attrs['aircraft']}/{fcdp[0].attrs['type']}"
+    save = f"{path_data}/results/LAWSON.PAUL/{df1.attrs['aircraft']}/{df1.attrs['type']}-{df2.attrs['type']}"
     make_dir(save)
-    # fig.savefig(f"{save}/{fcdp[0].attrs['type']}_{var}.png")
-    plt.show()
+    fig.savefig(f"{save}/conc_{fcdp[0].attrs['type']}_{var}.png")
+    # plt.show()
 
 
 def plot_scatter_size(df1, df2, fcdp, path_data):
@@ -88,17 +88,17 @@ def main():
     p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/*pkl')
     p3_temp = pd.read_pickle(p3_merged[0])
     p3_df = [pd.read_pickle(i) for i in ls_p3]
-    attrs = [i.attrs for i in p3_df]
+    _attrs = [i.attrs for i in p3_df]
     p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True) for i in p3_df]
     temp = 2
     for i, df in enumerate(p3_df):
-        df.attrs = attrs[i]
+        df.attrs = _attrs[i]
         df.rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
         if temp:
             df = df[df['Temp'] >= 0]
         p3_df[i] = df
     _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
-    plot_nsd(p3_df, _idx)
+    plot_nsd(p3_df, _idx) # here is the problem with the Hawk2DS50
     # days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                              'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
 
@@ -113,19 +113,22 @@ def main():
     df2 = pd.merge(fcdp[1], fcdp[2][['Temp']], left_index=True, right_index=True)
     df2.attrs = fcdp[1].attrs
     # temp = None
+    # fcdp = [i for i in p3_df if (i.attrs['type'] == '2DS10') | (i.attrs['type'] == 'Hawk2DS10')]
+    # df1 = fcdp[0]
+    # df2 = fcdp[1]
     temp = 2
-    # var = 'conc'
-    var = 'nsd'
+    var = 'conc'
+    # var = 'nsd'
     if temp:
-        df1 = df1[df1.Temp >= temp]
-        df2 = df2[df2.Temp >= temp]
+        df1 = df1[df1['Temp'] >= temp]
+        df2 = df2[df2['Temp'] >= temp]
     idx = df1.index.intersection(df2.index)
     df1 = df1.loc[idx]
     df2 = df2.loc[idx]
-    # plot_scatter(df1, df2, fcdp, path_data, var)
+    plot_scatter(df1, df2, fcdp, path_data, var)
     # plot_scatter_size(df1, df2, fcdp, path_data)
-    _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
-    plot_nsd(lear_df, _idx)
+    # _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
+    # plot_nsd(lear_df, _idx)
     print(1)
 
 

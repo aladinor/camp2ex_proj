@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import glob
+from typing import List
+
 import pandas as pd
 import sys
 import os
@@ -26,7 +28,7 @@ class Ict2df(object):
 
     def _get_meta(self):
         with open(self.path_file, 'r') as f:
-            lines = f.readlines()
+            lines: list[str] = f.readlines()
             header, file_type = findall(r"\d*\.\d+|\d+", lines[0])
             try:
                 sizes = np.array([float(''.join(findall(r"\d*\.\d+|\d+", i[i.find('(') + 1: i.find(')')])[:1]))
@@ -58,11 +60,17 @@ class Ict2df(object):
         df.index = df['time'].dt.tz_localize('utc')
         df['local_time'] = df['time'].dt.tz_localize('utc').dt.tz_convert('Asia/Manila')
         df.drop(columns=['time'], axis=1, inplace=True)
-        df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent}
+        df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent, 'aircraft': self.aircraft,
+                    'instrument': self.instrument}
         try:
             cols = df.filter(like='cbin', axis=1).columns.tolist()
             names = [f'nsd {self.sizes[i]}-{self.sizes[i + 1]}' for i, j in enumerate(self.sizes[:-1])]
             names.append(f'nsd >{self.sizes[-1]}')
+            if (self.aircraft == 'P3B') and (self.instrument == 'Hawk2DS50'):
+                names = ['nsd 3025.0-3250.0' if (item == 'nsd 3025.0-3225.0') or
+                         (item == 'nsd 3025.0-3275.0') else item for item in names]
+                names = ['nsd 3250.0-3525.0' if (item == 'nsd 3225.0-3525.0') or
+                         (item == 'nsd 3275.0-3525.0') else item for item in names]
             dt_cols = {j: names[i] for i, j in enumerate(cols)}
             df = df.rename(columns=dt_cols)
             return df
@@ -93,19 +101,18 @@ def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
     path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
 
-    # instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
-    # aircraft = ['P3B', 'Learjet']
-    instruments = ['Hawk2DS50']
-    aircraft = ['P3B']
+    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
+    aircraft = ['P3B', 'Learjet']
     file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
     path_save = f'{path_data}/data/LAWSON.PAUL'
     for file in file_type:
         files = glob.glob(f'{file}*')
-        ict2pkl(files, path_save)
+        if files:
+            ict2pkl(files, path_save)
 
-    files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
-    path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
-    ict2pkl(files, path_save=path_save)
+    # files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
+    # path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
+    # ict2pkl(files, path_save=path_save)
 
 
 if __name__ == '__main__':
