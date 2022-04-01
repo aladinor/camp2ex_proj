@@ -1,34 +1,45 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import dash
+import sys
+import os
+import base64
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
 from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
+from re import split
+sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
+from src.utils import get_pars_from_ini
 
-PLOTLY_LOGO = "https://images.plot.ly/logo/new-branding/plotly-logomark.png"
+location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
+path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+
+PLOTLY_LOGO = f"{path_data}/data/CAMPEX_Logo_Lg.png"
+img = base64.b64encode(open(PLOTLY_LOGO, 'rb').read())
 
 NAVBAR = dbc.Navbar(
     children=[
         html.A(
-            # Use row and col to control vertical alignment of logo / brand
             dbc.Row(
                 [
-                    dbc.Col(html.Img(src=PLOTLY_LOGO, height="80px")),
+                    dbc.Col(html.Img(src='data:image/png;base64,{}'.format(img.decode()),
+                            style={'height': '40%'}
+                            )),
                     dbc.Col(
-                        dbc.NavbarBrand("CAMP2Ex cloud probes", className="ml-2")
+                        dbc.NavbarBrand("CAMP2Ex Dashboard", className="ms-2")
                     ),
                 ],
-                align="center",
+                # align="center",
             ),
-            href="https://plot.ly",
+            href="https://www-air.larc.nasa.gov/missions/camp2ex/index.html",
         )
     ],
     color="dark",
     dark=True,
-    sticky="top",
+    # sticky="top",
 )
 
 LEFT_COLUMN = dbc.Col(
@@ -56,6 +67,8 @@ LEFT_COLUMN = dbc.Col(
             placeholder="Cloud probe",
             searchable=True
         ),
+        dcc.Checklist(id='select-all',
+                      options=[{'label': 'Select All', 'value': 1}], value=[]),
 
         html.Label("Date", className="lead"),
         dcc.Dropdown(
@@ -81,7 +94,7 @@ LEFT_COLUMN = dbc.Col(
             clearable=True,
             multi=False,
             style={"marginBottom": 10, "font-size": 12},
-            placeholder="Hour",
+            placeholder="Minute",
             searchable=True,
         ),
         html.Label("Second slider", className="lead"),
@@ -92,7 +105,7 @@ LEFT_COLUMN = dbc.Col(
                 step=1,
                 id='time-slider',
                 tooltip={"placement": "bottom", "always_visible": True},
-                marks=None
+                # marks=None
                 ),
             ]
         ),
@@ -106,7 +119,6 @@ MIDDLE_COLUMN = [
             dcc.Loading(
                 id="table-res",
                 type='circle',
-                # type="default",
                 children=[
                     dbc.Alert(
                         "Not enough data to render this plot, please adjust the filters",
@@ -114,7 +126,7 @@ MIDDLE_COLUMN = [
                         color="warning",
                         style={"display": "none"},
                     ),
-                    dcc.Graph(id='plot-map', style=dict(aling='centered')),
+                    dcc.Graph(id='plot-cop', style=dict(aling='centered')),
                     # dcc.Graph(id="plot-table"),
                 ],
             )
@@ -127,8 +139,8 @@ BODY = dbc.Container(
     [
         dbc.Row(
             [
-                dbc.Col(LEFT_COLUMN, md=4),
-                dbc.Col(dbc.Card(MIDDLE_COLUMN), md=8),
+                dbc.Col(LEFT_COLUMN, md=3),
+                dbc.Col(dbc.Card(MIDDLE_COLUMN), md=5),
                 # dbc.Col(dbc.Card(RIGHT_COLUMN), md=3),
             ],
             style={"marginTop": 30},
@@ -154,6 +166,18 @@ def update_sensor_day(aircraft):
     else:
         sensor, _date = get_sensors(aircraft)
         return sensor, _date
+
+
+@app.callback(
+    Output("drop-sensor", 'value'),
+    [Input('select-all', 'value')],
+    [State("drop-aircraft", "value"),
+     State('drop-sensor', 'options')])
+def test(selected, options_1, sensor):
+    if len(selected) > 0:
+        return [i['value'] for i in sensor]
+    else:
+        return []
 
 
 @app.callback(
@@ -212,7 +236,7 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
 
 
 @app.callback(
-    Output('plot-map', 'figure'),
+    Output('plot-cop', 'figure'),
     [
         Input("time-slider", "value")
     ],
@@ -256,5 +280,5 @@ def wait_for():
 
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port='8051', debug=True)
+    app.run_server(host='127.0.0.1', port=8052, debug=True)
     pass

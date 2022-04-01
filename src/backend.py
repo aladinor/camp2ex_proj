@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 from re import split
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
-from src.utils import get_pars_from_ini, make_dir
+from src.utils import get_pars_from_ini
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
@@ -22,7 +22,7 @@ dt_sensor = [{"label": f"{i.attrs['type']}", "value": f"{i.attrs['type']}"} for 
 dt_aircraft = [{"label": 'P3B', 'value': 'P3B'}, {"label": 'Learjet', 'value': 'Learjet'}]
 
 
-def get_sensors(aircraft: str) -> list:
+def get_sensors(aircraft: str) -> tuple[list[dict[str:str]], list[dict[str:str]]]:
     """
 
     :rtype: object
@@ -41,7 +41,7 @@ def get_sensors(aircraft: str) -> list:
         return sensor_opt, date_opt
 
 
-def get_hour(aircraft, ls_sensor, day):
+def get_hour(aircraft, ls_sensor, day) -> list[dict[str:str]]:
     if aircraft == 'P3B':
         ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
                                            for i in p3_df if i.attrs['type'] in ls_sensor]
@@ -109,20 +109,27 @@ def plot_nsd(aircraft, ls_sensor, day, _hour, minute, second):
         fig = px.line()
         return fig
     else:
-        fig = go.Figure()
+        layout = go.Layout(autosize=True, width=600, height=600,
+                           title={'text': f"{_idx: %Y-%m-%d %H:%M:%S} - {aircraft}", 'x': 0.5, 'xanchor': 'center',
+                                  })
+        # fig = make_subplots(rows=1, cols=1)
+        fig = go.Figure(layout=layout)
         for i in ls_df:
             x = i.attrs['sizes']
             y = i[i.index == _idx.tz_convert('UTC')].filter(like='nsd').iloc[0].values
             y = np.where(y > 0, y, np.nan)
-            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
-        fig.update_traces(mode="lines", line_shape="vh")
-        fig.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log")
-        fig.update_xaxes(title_text="Diameter (um)", type="log")
-        fig.update_layout(width=1100, height=700, title={
-                                                         'text': f"{_idx: %Y-%m-%d %H:%M:%S} - {aircraft}",
-                                                         'x': 0.5,
-                                                         'xanchor': 'center'})
-        fig.update_traces(xaxis_showgrid=True, selector={'secondary_x': True})
+            ax1 = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']), row=1, col=1)
+        ax1.update_traces(mode="lines", line_shape="vh")
+        ax1.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
+                         showexponent='all')
+        ax1.update_xaxes(title_text="Diameter (um)", type="log",  exponentformat='power', showexponent='all', row=1, col=1)
+        ax1.update_layout(legend=dict(y=0.99, x=0.7))
+        #
+        # ax2 = fig.add_trace(
+        #     go.Scatter(x=[20, 30, 40], y=[50, 60, 70]),
+        #     row=1, col=2
+        # )
+
         return fig
 
 

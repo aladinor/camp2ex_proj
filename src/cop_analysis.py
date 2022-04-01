@@ -98,37 +98,38 @@ def main():
             df = df[df['Temp'] >= 0]
         p3_df[i] = df
     _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
-    plot_nsd(p3_df, _idx) # here is the problem with the Hawk2DS50
+    # plot_nsd(p3_df, _idx)
     # days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                              'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
 
     lear_df = [pd.read_pickle(i) for i in ls_learjet]
+    # This section is for comparing two instruments
     # days_lear = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                                'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in lear_df}
 
-    fcdp = [i for i in lear_df if (i.attrs['type'] == 'FCDP') | (i.attrs['type'] == 'HawkFCDP') |
-            (i.attrs['type'] == 'Page0')]
-    df1 = pd.merge(fcdp[0], fcdp[2][['Temp']], left_index=True, right_index=True)
-    df1.attrs = fcdp[0].attrs
-    df2 = pd.merge(fcdp[1], fcdp[2][['Temp']], left_index=True, right_index=True)
-    df2.attrs = fcdp[1].attrs
+    # fcdp = [i for i in lear_df if (i.attrs['type'] == 'FCDP') | (i.attrs['type'] == 'HawkFCDP') |
+    #         (i.attrs['type'] == 'Page0')]
+    # df1 = pd.merge(fcdp[0], fcdp[2][['Temp']], left_index=True, right_index=True)
+    # df1.attrs = fcdp[0].attrs
+    # df2 = pd.merge(fcdp[1], fcdp[2][['Temp']], left_index=True, right_index=True)
+    # df2.attrs = fcdp[1].attrs
     # temp = None
     # fcdp = [i for i in p3_df if (i.attrs['type'] == '2DS10') | (i.attrs['type'] == 'Hawk2DS10')]
     # df1 = fcdp[0]
     # df2 = fcdp[1]
-    temp = 2
-    var = 'conc'
-    # var = 'nsd'
-    if temp:
-        df1 = df1[df1['Temp'] >= temp]
-        df2 = df2[df2['Temp'] >= temp]
-    idx = df1.index.intersection(df2.index)
-    df1 = df1.loc[idx]
-    df2 = df2.loc[idx]
-    plot_scatter(df1, df2, fcdp, path_data, var)
+    # temp = 2
+    # var = 'conc'
+    # # var = 'nsd'
+    # if temp:
+    #     df1 = df1[df1['Temp'] >= temp]
+    #     df2 = df2[df2['Temp'] >= temp]
+    # idx = df1.index.intersection(df2.index)
+    # df1 = df1.loc[idx]
+    # df2 = df2.loc[idx]
+    # plot_scatter(df1, df2, fcdp, path_data, var)
     # plot_scatter_size(df1, df2, fcdp, path_data)
-    # _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
-    # plot_nsd(lear_df, _idx)
+    _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
+    plot_nsd(lear_df[:-1], _idx)
     print(1)
 
 
