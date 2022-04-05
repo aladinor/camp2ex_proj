@@ -7,10 +7,11 @@ import base64
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
-from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd
+from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd, plot_map
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
 from re import split
+
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
 
@@ -25,11 +26,11 @@ NAVBAR = dbc.Navbar(
         html.A(
             dbc.Row(
                 [
-                    dbc.Col(html.Img(src='data:image/png;base64,{}'.format(img.decode()),
-                            style={'height': '40%'}
-                            )),
+                    dbc.Col(html.Img(src='data:image/png;base64,{}'.format(img.decode()), height="100px"
+                                     # style={'height': '40%'}
+                                     )),
                     dbc.Col(
-                        dbc.NavbarBrand("CAMP2Ex Dashboard", className="ms-2")
+                        dbc.NavbarBrand("CAMP2Ex - UIUC Dashboard", className="ms-2")
                     ),
                 ],
                 # align="center",
@@ -44,8 +45,7 @@ NAVBAR = dbc.Navbar(
 
 LEFT_COLUMN = dbc.Col(
     [
-
-        html.H1(children="Filter options", className="display-4"),
+        html.H6(children="Filter options", className="display-4"),
         # html.Hr(className="my-2"),
 
         html.Label("Aircraft", style={"marginTop": 20}, className="lead"),
@@ -68,7 +68,9 @@ LEFT_COLUMN = dbc.Col(
             searchable=True
         ),
         dcc.Checklist(id='select-all',
-                      options=[{'label': 'Select All', 'value': 1}], value=[]),
+                      options=[{'label': 'Select All', 'value': 1}], value=[],
+                      style={"marginBottom": 10, "font-size": 11.5},
+                      ),
 
         html.Label("Date", className="lead"),
         dcc.Dropdown(
@@ -105,9 +107,8 @@ LEFT_COLUMN = dbc.Col(
                 step=1,
                 id='time-slider',
                 tooltip={"placement": "bottom", "always_visible": True},
-                # marks=None
-                ),
-            ]
+            ),
+        ]
         ),
     ]
 )
@@ -116,31 +117,30 @@ MIDDLE_COLUMN = [
     dbc.CardHeader(html.H5("Results")),
     dbc.CardBody(
         [
-            dcc.Loading(
-                id="table-res",
-                type='circle',
-                children=[
-                    dbc.Alert(
-                        "Not enough data to render this plot, please adjust the filters",
-                        id="no-data-alert-bank",
-                        color="warning",
-                        style={"display": "none"},
-                    ),
-                    dcc.Graph(id='plot-cop', style=dict(aling='centered')),
-                    # dcc.Graph(id="plot-table"),
-                ],
-            )
+            html.Div([
+                dcc.Graph(id='plot-cop',
+                          style={'align': 'left', 'width': '49%'}
+                          ),
+            ]
+            ),
+            html.Div([
+                dcc.Graph(id='plot-map',
+                          style={'align': 'left', 'width': '49%'}
+                          ),
+            ]
+            ),
         ],
         style={"marginTop": 0, "marginBottom": 0, 'display': 'flex'},
     ),
+
 ]
 
 BODY = dbc.Container(
     [
         dbc.Row(
             [
-                dbc.Col(LEFT_COLUMN, md=3),
-                dbc.Col(dbc.Card(MIDDLE_COLUMN), md=5),
+                dbc.Col(LEFT_COLUMN, lg=3, md=12),
+                dbc.Col(dbc.Card(MIDDLE_COLUMN), lg=9, md=12),
                 # dbc.Col(dbc.Card(RIGHT_COLUMN), md=3),
             ],
             style={"marginTop": 30},
@@ -236,7 +236,8 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
 
 
 @app.callback(
-    Output('plot-cop', 'figure'),
+    [Output('plot-cop', 'figure'),
+     Output('plot-map', 'figure')],
     [
         Input("time-slider", "value")
     ],
@@ -249,14 +250,8 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
     ]
 )
 def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None, minute=None):
-    if not second:
-        raise PreventUpdate
-    else:
-        if (sensor is None) or (date is None) or (aircraft is None) or (hour is None) or (minute is None) \
-                or (second is None):
-            raise PreventUpdate
-        else:
-            return plot_nsd(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour, minute=minute, second=second)
+    return plot_nsd(aircraft=aircraft, ls_sensor=sensor, _hour=hour, minute=minute, second=second), \
+           plot_map(aircraft=aircraft, date=date)
 
 
 def wait_for():
@@ -280,5 +275,5 @@ def wait_for():
 
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8052, debug=True)
+    app.run_server(host='127.0.0.1', port=8053, debug=True)
     pass
