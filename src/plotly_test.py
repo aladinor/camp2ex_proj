@@ -26,8 +26,7 @@ NAVBAR = dbc.Navbar(
         html.A(
             dbc.Row(
                 [
-                    dbc.Col(html.Img(src='data:image/png;base64,{}'.format(img.decode()), height="100px"
-                                     # style={'height': '40%'}
+                    dbc.Col(html.Img(src='data:image/png;base64,{}'.format(img.decode()), height="90px"
                                      )),
                     dbc.Col(
                         dbc.NavbarBrand("CAMP2Ex - UIUC Dashboard", className="ms-2")
@@ -117,20 +116,22 @@ MIDDLE_COLUMN = [
     dbc.CardHeader(html.H5("Results")),
     dbc.CardBody(
         [
-            html.Div([
+            html.Div(children=[
                 dcc.Graph(id='plot-cop',
-                          style={'align': 'left', 'width': '49%'}
+                          style={'display': 'inline-block'}
+                          # style={'align': 'left', 'width': '49%'}
                           ),
-            ]
-            ),
-            html.Div([
+            # ]
+            # ),
+            # html.Div(children=[
                 dcc.Graph(id='plot-map',
-                          style={'align': 'left', 'width': '49%'}
+                          style={'display': 'inline-block'}
+                          # style={'align': 'left', 'width': '49%'}
                           ),
             ]
             ),
         ],
-        style={"marginTop": 0, "marginBottom": 0, 'display': 'flex'},
+        # style={"marginTop": 0, "marginBottom": 0, 'display': 'flex'},
     ),
 
 ]
@@ -139,8 +140,8 @@ BODY = dbc.Container(
     [
         dbc.Row(
             [
-                dbc.Col(LEFT_COLUMN, lg=3, md=12),
-                dbc.Col(dbc.Card(MIDDLE_COLUMN), lg=9, md=12),
+                dbc.Col(LEFT_COLUMN, lg=3),
+                dbc.Col(dbc.Card(MIDDLE_COLUMN), lg=9),
                 # dbc.Col(dbc.Card(RIGHT_COLUMN), md=3),
             ],
             style={"marginTop": 30},
@@ -251,7 +252,7 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
 )
 def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None, minute=None):
     return plot_nsd(aircraft=aircraft, ls_sensor=sensor, _hour=hour, minute=minute, second=second), \
-           plot_map(aircraft=aircraft, date=date)
+           plot_map(aircraft=aircraft, date=minute, second=second)
 
 
 def wait_for():
