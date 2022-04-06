@@ -124,46 +124,39 @@ def get_hour(aircraft, ls_sensor, day) -> list[dict[str:str]]:
 
 def get_minutes(aircraft, ls_sensor, day, _hour):
     if aircraft == 'P3B':
-
-        ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
                  for i in p3_df if i.attrs['type'] in ls_sensor]
-        ls_df = [i[i['local_time'].dt.hour == pd.to_datetime(_hour).hour]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('H')).get_group(pd.Timestamp(_hour).tz_convert('Asia/Manila'))
                  for i in ls_df]
-        # ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
-        #          for i in p3_df if i.attrs['type'] in ls_sensor]
-        # ls_df = [i.groupby(by=i['local_time'].dt.floor('H')).get_group(pd.Timestamp(_hour))
-        #          for i in ls_df]
-
         _min = sorted(set(np.concatenate([i['local_time'].dt.floor('min').unique() for i in ls_df]).flat))
         min_opt = [{'label': f'{i: %M}', 'value': i} for i in _min]
         return min_opt
-    elif aircraft == 'Learjet':
-        if aircraft == 'Learjet':
-            ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
-                     for i in lear_df if i.attrs['type'] in ls_sensor]
-            ls_df = [i[i['local_time'].dt.hour == pd.to_datetime(_hour).hour]
-                     for i in ls_df]
-            _min = sorted(set(np.concatenate([i['local_time'].dt.floor('min').unique() for i in ls_df]).flat))
-            min_opt = [{'label': f'{i: %M}', 'value': i} for i in _min]
-            return min_opt
+    else:
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
+                 for i in lear_df if i.attrs['type'] in ls_sensor]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('H')).get_group(pd.Timestamp(_hour).tz_convert('Asia/Manila'))
+                 for i in ls_df]
+        _min = sorted(set(np.concatenate([i['local_time'].dt.floor('min').unique() for i in ls_df]).flat))
+        min_opt = [{'label': f'{i: %M}', 'value': i} for i in _min]
+        return min_opt
 
 
 def get_seconds(aircraft, ls_sensor, day, _hour, minute):
     if aircraft == 'P3B':
-        ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
                  for i in p3_df if i.attrs['type'] in ls_sensor]
-        ls_df = [i[i['local_time'].dt.hour == pd.to_datetime(_hour).hour]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('H')).get_group(pd.Timestamp(_hour))
                  for i in ls_df]
-        ls_df = [i[i['local_time'].dt.minute == pd.to_datetime(minute).minute]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('min')).get_group(pd.Timestamp(minute))
                  for i in ls_df]
         _secs = sorted(set(np.concatenate([i['local_time'].dt.floor('s').unique() for i in ls_df]).flat))
         return min(_secs).second, max(_secs).second
-    elif aircraft == 'Learjet':
-        ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
+    else:
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
                  for i in lear_df if i.attrs['type'] in ls_sensor]
-        ls_df = [i[i['local_time'].dt.hour == pd.to_datetime(_hour).hour]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('H')).get_group(pd.Timestamp(_hour))
                  for i in ls_df]
-        ls_df = [i[i['local_time'].dt.minute == pd.to_datetime(minute).minute]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('min')).get_group(pd.Timestamp(minute))
                  for i in ls_df]
         _secs = sorted(set(np.concatenate([i['local_time'].dt.floor('s').unique() for i in ls_df]).flat))
         return min(_secs).second, max(_secs).second
