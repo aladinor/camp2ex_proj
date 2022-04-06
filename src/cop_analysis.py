@@ -97,8 +97,8 @@ def main():
         if temp:
             df = df[df['Temp'] >= 0]
         p3_df[i] = df
-    _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
-    # plot_nsd(p3_df, _idx)
+    _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 100000].filter(like='nsd').index), 1)[0]
+    plot_nsd(p3_df, _idx)
     # days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                              'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
 

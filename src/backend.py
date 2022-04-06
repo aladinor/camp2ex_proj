@@ -30,9 +30,12 @@ def psd_fig(_idx, ls_df, aircraft):
     fig = go.Figure(layout=layout)
     for i in ls_df:
         x = i.attrs['sizes']
-        y = i[i.index == _idx.tz_convert('UTC')].filter(like='nsd').iloc[0].values
-        y = np.where(y > 0, y, np.nan)
-        ax1 = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
+        try:
+            y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0]
+            y = np.where(y > 0, y, np.nan)
+            ax1 = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
+        except IndexError:
+            pass
     ax1.update_traces(mode="lines", line_shape="vh")
     ax1.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
@@ -41,10 +44,12 @@ def psd_fig(_idx, ls_df, aircraft):
     return fig
 
 
-def plot_map(aircraft, date, second):
+def plot_map(aircraft, month, date, second):
     if not date:
+        month = pd.Timestamp(year=2019, month=9, day=7, tz='Asia/Manila')
         date = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
     else:
+        month = pd.Timestamp(month)
         date = pd.Timestamp(date) + pd.Timedelta(second, unit='s')
 
     if not aircraft or aircraft == "Learjet":
@@ -53,9 +58,11 @@ def plot_map(aircraft, date, second):
         df = pd.read_pickle(ls_p3_merged[0])
         df.rename(columns={' Latitude_YANG_MetNav': 'Lat', ' Longitude_YANG_MetNav': 'Long'}, inplace=True)
 
-    df = df.loc[df['local_time'].dt.date == date, df.columns]
-    df.loc[df['Lat'] == 0, 'Lat'] = np.nan
-    df.loc[df['Long'] == 0, 'Long'] = np.nan
+    df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(month)
+    # df['Lat'] = df['Lat'].replace(0, np.nan)
+    # df['Lat'].replace(0, pd.NA, inplace=True)
+    # df['Long'].replace(0, pd.NA, inplace=True)
+    # df.loc[df['Long'] == 0, 'Long'] = np.nan
     lon_cent = df['Long'].mean()
     lat_cent = df['Lat'].mean()
     plane_lat = df.loc[df['local_time'] == date, 'Lat']
@@ -102,13 +109,13 @@ def get_sensors(aircraft: str) -> tuple[list[dict[str:str]], list[dict[str:str]]
 
 def get_hour(aircraft, ls_sensor, day) -> list[dict[str:str]]:
     if aircraft == 'P3B':
-        ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
                  for i in p3_df if i.attrs['type'] in ls_sensor]
         _hour = sorted(set(np.concatenate([i['local_time'].dt.floor('h').unique() for i in ls_df]).flat))
         hour_opt = [{'label': f'{i: %H:%M}', 'value': i} for i in _hour]
         return hour_opt
     if aircraft == 'Learjet':
-        ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
+        ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
                  for i in lear_df if i.attrs['type'] in ls_sensor]
         _hour = sorted(set(np.concatenate([i['local_time'].dt.floor('h').unique() for i in ls_df]).flat))
         hour_opt = [{'label': f'{i: %H:%M}', 'value': i} for i in _hour]
@@ -117,10 +124,16 @@ def get_hour(aircraft, ls_sensor, day) -> list[dict[str:str]]:
 
 def get_minutes(aircraft, ls_sensor, day, _hour):
     if aircraft == 'P3B':
+
         ls_df = [i[i['local_time'].dt.date == pd.to_datetime(day)]
                  for i in p3_df if i.attrs['type'] in ls_sensor]
         ls_df = [i[i['local_time'].dt.hour == pd.to_datetime(_hour).hour]
                  for i in ls_df]
+        # ls_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(day))
+        #          for i in p3_df if i.attrs['type'] in ls_sensor]
+        # ls_df = [i.groupby(by=i['local_time'].dt.floor('H')).get_group(pd.Timestamp(_hour))
+        #          for i in ls_df]
+
         _min = sorted(set(np.concatenate([i['local_time'].dt.floor('min').unique() for i in ls_df]).flat))
         min_opt = [{'label': f'{i: %M}', 'value': i} for i in _min]
         return min_opt

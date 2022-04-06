@@ -22,24 +22,30 @@ PLOTLY_LOGO = f"{path_data}/data/CAMPEX_Logo_Lg.png"
 img = base64.b64encode(open(PLOTLY_LOGO, 'rb').read())
 
 NAVBAR = dbc.Navbar(
-    children=[
-        html.A(
-            dbc.Row(
-                [
-                    dbc.Col(html.Img(src='data:image/png;base64,{}'.format(img.decode()), height="90px"
-                                     )),
-                    dbc.Col(
-                        dbc.NavbarBrand("CAMP2Ex - UIUC Dashboard", className="ms-2")
-                    ),
-                ],
-                # align="center",
-            ),
-            href="https://www-air.larc.nasa.gov/missions/camp2ex/index.html",
-        )
-    ],
+    html.Div(
+        [
+            html.A(
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            html.Img(src='data:image/png;base64,{}'.format(img.decode()), height="60px"
+                                     )
+                        ),
+                        dbc.Col(
+                            dbc.NavbarBrand("  CAMP2Ex - UIUC - CSRG Dashboard", className="ms-2")
+                        ),
+                    ],
+                    align="center",
+                    className="g-0",
+                ),
+                href="https://www-air.larc.nasa.gov/missions/camp2ex/index.html",
+                style={"textDecoration": "none"},
+            )
+        ],
+        style={"marginLeft": 30},
+    ),
     color="dark",
     dark=True,
-    # sticky="top",
 )
 
 LEFT_COLUMN = dbc.Col(
@@ -121,9 +127,6 @@ MIDDLE_COLUMN = [
                           style={'display': 'inline-block'}
                           # style={'align': 'left', 'width': '49%'}
                           ),
-            # ]
-            # ),
-            # html.Div(children=[
                 dcc.Graph(id='plot-map',
                           style={'display': 'inline-block'}
                           # style={'align': 'left', 'width': '49%'}
@@ -131,23 +134,22 @@ MIDDLE_COLUMN = [
             ]
             ),
         ],
-        # style={"marginTop": 0, "marginBottom": 0, 'display': 'flex'},
+        style={"marginTop": 10, 'display': 'flex'},
     ),
 
 ]
 
-BODY = dbc.Container(
+BODY = html.Div(
     [
         dbc.Row(
             [
-                dbc.Col(LEFT_COLUMN, lg=3),
-                dbc.Col(dbc.Card(MIDDLE_COLUMN), lg=9),
-                # dbc.Col(dbc.Card(RIGHT_COLUMN), md=3),
+                dbc.Col(LEFT_COLUMN, md=3),
+                dbc.Col(dbc.Card(MIDDLE_COLUMN), md=9),
             ],
-            style={"marginTop": 30},
-        ),
-    ],
-    className="mt-12",
+            style={"marginTop": 30, "marginLeft": 30, "marginRight": 30},
+            align="center",
+        )
+    ]
 )
 
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -175,7 +177,9 @@ def update_sensor_day(aircraft):
     [State("drop-aircraft", "value"),
      State('drop-sensor', 'options')])
 def test(selected, options_1, sensor):
-    if len(selected) > 0:
+    if sensor is None:
+        raise PreventUpdate
+    elif len(selected) > 0:
         return [i['value'] for i in sensor]
     else:
         return []
@@ -252,7 +256,7 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
 )
 def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None, minute=None):
     return plot_nsd(aircraft=aircraft, ls_sensor=sensor, _hour=hour, minute=minute, second=second), \
-           plot_map(aircraft=aircraft, date=minute, second=second)
+           plot_map(aircraft=aircraft, date=minute, second=second, month=date)
 
 
 def wait_for():
@@ -276,5 +280,5 @@ def wait_for():
 
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8053, debug=True)
+    app.run_server(host='127.0.0.1', port=8054, debug=True)
     pass
