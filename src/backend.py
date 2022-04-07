@@ -59,10 +59,6 @@ def plot_map(aircraft, month, date, second):
         df.rename(columns={' Latitude_YANG_MetNav': 'Lat', ' Longitude_YANG_MetNav': 'Long'}, inplace=True)
 
     df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(month)
-    # df['Lat'] = df['Lat'].replace(0, np.nan)
-    # df['Lat'].replace(0, pd.NA, inplace=True)
-    # df['Long'].replace(0, pd.NA, inplace=True)
-    # df.loc[df['Long'] == 0, 'Long'] = np.nan
     lon_cent = df['Long'].mean()
     lat_cent = df['Lat'].mean()
     plane_lat = df.loc[df['local_time'] == date, 'Lat']

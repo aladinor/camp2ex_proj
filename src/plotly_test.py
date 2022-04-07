@@ -32,7 +32,8 @@ NAVBAR = dbc.Navbar(
                                      )
                         ),
                         dbc.Col(
-                            dbc.NavbarBrand("  CAMP2Ex - UIUC - CSRG Dashboard", className="ms-2")
+                            dbc.NavbarBrand("  CAMP2Ex - UIUC - CSRG Dashboard", className="ms-2",
+                                            style=dict(size='10px'))
                         ),
                     ],
                     align="center",
@@ -48,106 +49,143 @@ NAVBAR = dbc.Navbar(
     dark=True,
 )
 
-LEFT_COLUMN = dbc.Col(
+LEFT_COLUMN = dbc.Card(
     [
-        html.H6(children="Filter options", className="display-4"),
-        # html.Hr(className="my-2"),
+        dbc.CardHeader(html.H5("Filter Options")),
+        dbc.CardBody(
+            [
+                html.Label("Aircraft", style={"marginTop": 20}, className="lead"),
+                dcc.Dropdown(
+                    id="drop-aircraft",
+                    clearable=True,
+                    multi=False,
+                    style={"marginBottom": 10, "font-size": 12},
+                    options=dt_aircraft,
+                    placeholder="Aircraft",
+                    searchable=True
+                ),
+                html.Label("Sensor", style={"marginTop": 20}, className="lead"),
+                dcc.Dropdown(
+                    id="drop-sensor",
+                    clearable=True,
+                    multi=True,
+                    style={"marginBottom": 10, "font-size": 12},
+                    placeholder="Cloud probe",
+                    searchable=True
+                ),
+                dcc.Checklist(id='select-all',
+                              options=[{'label': 'Select All', 'value': 1}], value=[],
+                              style={"marginBottom": 10, "font-size": 11.5},
+                              ),
 
-        html.Label("Aircraft", style={"marginTop": 20}, className="lead"),
-        dcc.Dropdown(
-            id="drop-aircraft",
-            clearable=True,
-            multi=False,
-            style={"marginBottom": 10, "font-size": 12},
-            options=dt_aircraft,
-            placeholder="Aircraft",
-            searchable=True
-        ),
-        html.Label("Sensor", style={"marginTop": 20}, className="lead"),
-        dcc.Dropdown(
-            id="drop-sensor",
-            clearable=True,
-            multi=True,
-            style={"marginBottom": 10, "font-size": 12},
-            placeholder="Cloud probe",
-            searchable=True
-        ),
-        dcc.Checklist(id='select-all',
-                      options=[{'label': 'Select All', 'value': 1}], value=[],
-                      style={"marginBottom": 10, "font-size": 11.5},
-                      ),
+                html.Label("Date", className="lead"),
+                dcc.Dropdown(
+                    id="drop-days",
+                    clearable=True,
+                    multi=False,
+                    style={"marginBottom": 10, "font-size": 12},
+                    placeholder="Day",
+                    searchable=True,
+                ),
+                html.Label("Hour", className="lead"),
+                dcc.Dropdown(
+                    id="drop-hour",
+                    clearable=True,
+                    multi=False,
+                    style={"marginBottom": 10, "font-size": 12},
+                    placeholder="Hour",
+                    searchable=True,
+                ),
+                html.Label("Minute", className="lead"),
+                dcc.Dropdown(
+                    id="drop-minute",
+                    clearable=True,
+                    multi=False,
+                    style={"marginBottom": 10, "font-size": 12},
+                    placeholder="Minute",
+                    searchable=True,
+                ),
+                html.Label("Second slider", className="lead"),
+                html.Div([
+                    dcc.Slider(
+                        min=0,
+                        max=10,
+                        step=1,
+                        id='time-slider',
+                        tooltip={"placement": "bottom", "always_visible": True},
+                    ),
+                ]
+                ),
+            ],
+        )
+    ],
+)
 
-        html.Label("Date", className="lead"),
-        dcc.Dropdown(
-            id="drop-days",
-            clearable=True,
-            multi=False,
-            style={"marginBottom": 10, "font-size": 12},
-            placeholder="Day",
-            searchable=True,
+MIDDLE_COLUMN = dbc.Card(
+    [
+        dbc.CardHeader(html.H5("Results")),
+        dbc.CardBody(
+            [
+                html.Div(children=[
+                    dcc.Graph(id='plot-cop',
+                              style={'display': 'inline-block'}
+                              # style={'align': 'left', 'width': '49%'}
+                              ),
+                    dcc.Graph(id='plot-map',
+                              style={'display': 'inline-block'}
+                              # style={'align': 'left', 'width': '49%'}
+                              ),
+                ]
+                ),
+            ],
+            style={"marginTop": 10, 'display': 'flex'},
         ),
-        html.Label("Hour", className="lead"),
-        dcc.Dropdown(
-            id="drop-hour",
-            clearable=True,
-            multi=False,
-            style={"marginBottom": 10, "font-size": 12},
-            placeholder="Hour",
-            searchable=True,
-        ),
-        html.Label("Minute", className="lead"),
-        dcc.Dropdown(
-            id="drop-minute",
-            clearable=True,
-            multi=False,
-            style={"marginBottom": 10, "font-size": 12},
-            placeholder="Minute",
-            searchable=True,
-        ),
-        html.Label("Second slider", className="lead"),
-        html.Div([
-            dcc.Slider(
-                min=0,
-                max=10,
-                step=1,
-                id='time-slider',
-                tooltip={"placement": "bottom", "always_visible": True},
-            ),
-        ]
-        ),
+
     ]
 )
 
-MIDDLE_COLUMN = [
-    dbc.CardHeader(html.H5("Results")),
-    dbc.CardBody(
-        [
-            html.Div(children=[
-                dcc.Graph(id='plot-cop',
-                          style={'display': 'inline-block'}
-                          # style={'align': 'left', 'width': '49%'}
-                          ),
-                dcc.Graph(id='plot-map',
-                          style={'display': 'inline-block'}
-                          # style={'align': 'left', 'width': '49%'}
-                          ),
-            ]
-            ),
-        ],
-        style={"marginTop": 10, 'display': 'flex'},
-    ),
-
-]
+# MIDDLE_COLUMN = dbc.Card(
+#     [
+#         dbc.CardHeader(html.H5("Results")),
+#         dbc.CardBody(
+#             [
+#                 html.Div(children=[
+#                         dbc.Row(dbc.Col(html.Div("A single column"))),
+#                         dbc.Row([dbc.Col([
+#                             html.Div([
+#                         #         dbc.Col(
+#                         #             html.Div([
+#                                     dcc.Graph(id='plot-cop')
+#                                               # style={'display': 'inline-block'}))
+#                                 ])
+#                             ])
+#                             ]
+#                                         # ])
+#                         #                 ),
+#                         #     #     ]
+#                         #     # )
+#                         #     # dbc.Col(
+#                         #     #     # html.Div(
+#                         #     #         dcc.Graph(id='plot-map')
+#                         #     #                   # style={'display': 'inline-block'}
+#                         #     #                   ),
+#                                 ),
+#                     ]
+#                 ),
+#             ],
+#         ),
+#     ]
+# )
 
 BODY = html.Div(
     [
         dbc.Row(
             [
                 dbc.Col(LEFT_COLUMN, md=3),
-                dbc.Col(dbc.Card(MIDDLE_COLUMN), md=9),
+                dbc.Col(MIDDLE_COLUMN, md=9),
             ],
             style={"marginTop": 30, "marginLeft": 30, "marginRight": 30},
-            align="center",
+            # align="center",
         )
     ]
 )
@@ -177,7 +215,7 @@ def update_sensor_day(aircraft):
     [State("drop-aircraft", "value"),
      State('drop-sensor', 'options')])
 def test(selected, options_1, sensor):
-    if sensor is None:
+    if (sensor is None) or (options_1 is None) or (sensor is None):
         raise PreventUpdate
     elif len(selected) > 0:
         return [i['value'] for i in sensor]
@@ -196,7 +234,7 @@ def test(selected, options_1, sensor):
     ]
 )
 def update_hour(_date=None, aircraft=None, sensor=None):
-    if not _date:
+    if (_date is None) or (aircraft is None) or (sensor is None):
         raise PreventUpdate
     else:
         return get_hour(aircraft=aircraft, ls_sensor=sensor, day=_date)
@@ -214,7 +252,7 @@ def update_hour(_date=None, aircraft=None, sensor=None):
     ]
 )
 def update_minutes(hour=None, aircraft=None, sensor=None, date=None, ):
-    if not hour:
+    if (hour is None) or (aircraft is None) or (sensor is None) or (date is None):
         raise PreventUpdate
     else:
         return get_minutes(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour)
@@ -234,7 +272,7 @@ def update_minutes(hour=None, aircraft=None, sensor=None, date=None, ):
     ]
 )
 def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None, ):
-    if not minute:
+    if (hour is None) or (aircraft is None) or (sensor is None) or (date is None) or (minute is None):
         raise PreventUpdate
     else:
         return get_seconds(aircraft=aircraft, ls_sensor=sensor, day=date, _hour=hour, minute=minute)
