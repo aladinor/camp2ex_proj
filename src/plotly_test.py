@@ -7,7 +7,7 @@ import base64
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
-from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd, plot_map
+from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd, plot_map, title
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
 from re import split
@@ -51,7 +51,7 @@ NAVBAR = dbc.Navbar(
 
 LEFT_COLUMN = dbc.Card(
     [
-        dbc.CardHeader(html.H5("Filter Options")),
+        dbc.CardHeader(html.H4("Filter Options")),
         dbc.CardBody(
             [
                 html.Label("Aircraft", style={"marginTop": 20}, className="lead"),
@@ -123,59 +123,29 @@ LEFT_COLUMN = dbc.Card(
 
 MIDDLE_COLUMN = dbc.Card(
     [
-        dbc.CardHeader(html.H5("Results")),
+        dbc.CardHeader(html.H4("Results")),
         dbc.CardBody(
             [
-                html.Div(children=[
-                    dcc.Graph(id='plot-cop',
-                              style={'display': 'inline-block'}
-                              # style={'align': 'left', 'width': '49%'}
-                              ),
-                    dcc.Graph(id='plot-map',
-                              style={'display': 'inline-block'}
-                              # style={'align': 'left', 'width': '49%'}
-                              ),
-                ]
+                dbc.Row(
+                    dbc.Col(
+                        html.H5(
+                            html.Div(id='title-output',  className='text-center')
+                        ),
+                    )
                 ),
-            ],
-            style={"marginTop": 10, 'display': 'flex'},
-        ),
+                dbc.Row(
+                    [
+                        dbc.Col([dcc.Graph(id='plot-cop')]),
+                        dbc.Col([dcc.Graph(id='plot-map')]),
+                        dbc.Col([html.Div('This is an empty column')]),
+                    ],
+                    align="start", className="g-0",
+                )
 
+            ]
+        )
     ]
 )
-
-# MIDDLE_COLUMN = dbc.Card(
-#     [
-#         dbc.CardHeader(html.H5("Results")),
-#         dbc.CardBody(
-#             [
-#                 html.Div(children=[
-#                         dbc.Row(dbc.Col(html.Div("A single column"))),
-#                         dbc.Row([dbc.Col([
-#                             html.Div([
-#                         #         dbc.Col(
-#                         #             html.Div([
-#                                     dcc.Graph(id='plot-cop')
-#                                               # style={'display': 'inline-block'}))
-#                                 ])
-#                             ])
-#                             ]
-#                                         # ])
-#                         #                 ),
-#                         #     #     ]
-#                         #     # )
-#                         #     # dbc.Col(
-#                         #     #     # html.Div(
-#                         #     #         dcc.Graph(id='plot-map')
-#                         #     #                   # style={'display': 'inline-block'}
-#                         #     #                   ),
-#                                 ),
-#                     ]
-#                 ),
-#             ],
-#         ),
-#     ]
-# )
 
 BODY = html.Div(
     [
@@ -185,7 +155,6 @@ BODY = html.Div(
                 dbc.Col(MIDDLE_COLUMN, md=9),
             ],
             style={"marginTop": 30, "marginLeft": 30, "marginRight": 30},
-            # align="center",
         )
     ]
 )
@@ -280,7 +249,8 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
 
 @app.callback(
     [Output('plot-cop', 'figure'),
-     Output('plot-map', 'figure')],
+     Output('plot-map', 'figure'),
+     Output('title-output', 'children')],
     [
         Input("time-slider", "value")
     ],
@@ -294,7 +264,8 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
 )
 def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None, minute=None):
     return plot_nsd(aircraft=aircraft, ls_sensor=sensor, _hour=hour, minute=minute, second=second), \
-           plot_map(aircraft=aircraft, date=minute, second=second, month=date)
+           plot_map(aircraft=aircraft, date=minute, second=second, month=date),  \
+           title(aircraft=aircraft, date=minute, second=second, month=date)
 
 
 def wait_for():

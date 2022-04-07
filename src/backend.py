@@ -23,10 +23,17 @@ dt_sensor = [{"label": f"{i.attrs['type']}", "value": f"{i.attrs['type']}"} for 
 dt_aircraft = [{"label": 'P3B', 'value': 'P3B'}, {"label": 'Learjet', 'value': 'Learjet'}]
 
 
+def title(aircraft, date, second, month):
+    if (aircraft is None) or (date is None) or (second is None) or (month is None):
+        _date = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
+        return f"{_date: %Y-%m-%d %H:%M:%S} (Local time) - Learjet"
+    else:
+        _date = pd.Timestamp(date) + pd.Timedelta(second, unit='s')
+        return f"{_date: %Y-%m-%d %H:%M:%S} - {aircraft} - Local time"
+
+
 def psd_fig(_idx, ls_df, aircraft):
-    layout = go.Layout(autosize=True, width=450, height=450,
-                       title={'text': f"{_idx: %Y-%m-%d %H:%M:%S} - {aircraft} - Local time", 'x': 0.5,
-                              'xanchor': 'center'})
+    layout = go.Layout(autosize=True, width=600, height=600)
     fig = go.Figure(layout=layout)
     for i in ls_df:
         x = i.attrs['sizes']
@@ -40,7 +47,7 @@ def psd_fig(_idx, ls_df, aircraft):
     ax1.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
     ax1.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
-    ax1.update_layout(legend=dict(y=0.99, x=0.6))
+    ax1.update_layout(legend=dict(y=0.99, x=0.7))
     return fig
 
 
@@ -63,7 +70,7 @@ def plot_map(aircraft, month, date, second):
     lat_cent = df['Lat'].mean()
     plane_lat = df.loc[df['local_time'] == date, 'Lat']
     plane_lon = df.loc[df['local_time'] == date, 'Long']
-    layout = go.Layout(autosize=True, width=480, height=480)
+    layout = go.Layout(autosize=True, width=600, height=600)
     fig = go.Figure(layout=layout)
     fig.add_trace(go.Scattermapbox(mode='lines',
                                    lon=df['Long'],
