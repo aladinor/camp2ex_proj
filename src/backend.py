@@ -23,16 +23,21 @@ dt_sensor = [{"label": f"{i.attrs['type']}", "value": f"{i.attrs['type']}"} for 
 dt_aircraft = [{"label": 'P3B', 'value': 'P3B'}, {"label": 'Learjet', 'value': 'Learjet'}]
 
 
-def title(aircraft, date, second, month):
-    if (aircraft is None) or (date is None) or (second is None) or (month is None):
-        _date = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
-        return f"{_date: %Y-%m-%d %H:%M:%S} (Local time) - Learjet"
+def title(aircraft, idx):
+    if (aircraft is None) or (idx is None):
+        idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
+        return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - Learjet"
     else:
-        _date = pd.Timestamp(date) + pd.Timedelta(second, unit='s')
-        return f"{_date: %Y-%m-%d %H:%M:%S} - {aircraft} - Local time"
+        return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - {aircraft} "
 
 
-def psd_fig(_idx, ls_df, aircraft):
+def plot_temp(aircraft):
+    if aircraft == 'P3B':
+        fig = go.Figure()
+        fig.add_trace()
+
+
+def psd_fig(_idx, ls_df):
     layout = go.Layout(autosize=True, width=600, height=600)
     fig = go.Figure(layout=layout)
     for i in ls_df:
@@ -40,36 +45,30 @@ def psd_fig(_idx, ls_df, aircraft):
         try:
             y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0]
             y = np.where(y > 0, y, np.nan)
-            ax1 = fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
         except IndexError:
             pass
-    ax1.update_traces(mode="lines", line_shape="vh")
-    ax1.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
+    fig.update_traces(mode="lines", line_shape="vh")
+    fig.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
-    ax1.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
-    ax1.update_layout(legend=dict(y=0.99, x=0.7))
+    fig.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
+    fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue",)
     return fig
 
 
-def plot_map(aircraft, month, date, second):
-    if not date:
-        month = pd.Timestamp(year=2019, month=9, day=7, tz='Asia/Manila')
-        date = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
-    else:
-        month = pd.Timestamp(month)
-        date = pd.Timestamp(date) + pd.Timedelta(second, unit='s')
-
+# def plot_map(aircraft, month, date, second):
+def plot_map(idx, aircraft):
     if not aircraft or aircraft == "Learjet":
         df = lear_df[-1]
     else:
         df = pd.read_pickle(ls_p3_merged[0])
         df.rename(columns={' Latitude_YANG_MetNav': 'Lat', ' Longitude_YANG_MetNav': 'Long'}, inplace=True)
 
-    df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(month)
+    df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
     lon_cent = df['Long'].mean()
     lat_cent = df['Lat'].mean()
-    plane_lat = df.loc[df['local_time'] == date, 'Lat']
-    plane_lon = df.loc[df['local_time'] == date, 'Long']
+    plane_lat = df.loc[df['local_time'] == idx, 'Lat']
+    plane_lon = df.loc[df['local_time'] == idx, 'Long']
     layout = go.Layout(autosize=True, width=600, height=600)
     fig = go.Figure(layout=layout)
     fig.add_trace(go.Scattermapbox(mode='lines',
@@ -86,7 +85,7 @@ def plot_map(aircraft, month, date, second):
         showlegend=False
     ))
     fig.update_layout(mapbox_style="open-street-map", mapbox_center_lat=lat_cent, mapbox_center_lon=lon_cent,
-                      mapbox=dict(zoom=5), )
+                      mapbox=dict(zoom=5), margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue",)
 
     return fig
 
@@ -163,21 +162,6 @@ def get_seconds(aircraft, ls_sensor, day, _hour, minute):
                  for i in ls_df]
         _secs = sorted(set(np.concatenate([i['local_time'].dt.floor('s').unique() for i in ls_df]).flat))
         return min(_secs).second, max(_secs).second
-
-
-def plot_nsd(aircraft, ls_sensor, _hour, minute, second):
-    if (aircraft is None) or (_hour is None) or (minute is None) or (second is None):
-        return psd_fig(_idx=pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila'),
-                       ls_df=lear_df, aircraft='Learjet')
-
-    if aircraft == 'P3B':
-        ls_df = [i for i in p3_df if i.attrs['type'] in ls_sensor]
-        _idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
-    else:
-        ls_df = [i for i in lear_df if i.attrs['type'] in ls_sensor]
-        _idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
-
-    return psd_fig(_idx=_idx, ls_df=ls_df, aircraft=aircraft)
 
 
 def main():

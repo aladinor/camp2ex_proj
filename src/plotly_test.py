@@ -4,16 +4,17 @@ import dash
 import sys
 import os
 import base64
+import pandas as pd
 from dash import dcc
 from dash import html
 import dash_bootstrap_components as dbc
-from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_nsd, plot_map, title
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
 from re import split
-
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
+from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_seconds, plot_map, title, \
+    psd_fig, lear_df, p3_df
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
@@ -137,9 +138,9 @@ MIDDLE_COLUMN = dbc.Card(
                     [
                         dbc.Col([dcc.Graph(id='plot-cop')]),
                         dbc.Col([dcc.Graph(id='plot-map')]),
-                        dbc.Col([html.Div('This is an empty column')]),
+                        # dbc.Col([html.Div('This is an empty column')]),
                     ],
-                    align="start", className="g-0",
+                    align="start", # className="g-0",
                 )
 
             ]
@@ -263,9 +264,16 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
     ]
 )
 def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None, minute=None):
-    return plot_nsd(aircraft=aircraft, ls_sensor=sensor, _hour=hour, minute=minute, second=second), \
-           plot_map(aircraft=aircraft, date=minute, second=second, month=date),  \
-           title(aircraft=aircraft, date=minute, second=second, month=date)
+    if (aircraft is None) or (hour is None) or (minute is None) or (second is None):
+        idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
+        return psd_fig(_idx=idx, ls_df=lear_df), plot_map(idx, aircraft), title(aircraft, date)
+    else:
+        idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
+        if aircraft == 'P3B':
+            ls_df = [i for i in p3_df if i.attrs['type'] in sensor]
+        else:
+            ls_df = [i for i in lear_df if i.attrs['type'] in sensor]
+        return psd_fig(_idx=idx, ls_df=ls_df), plot_map(idx, aircraft), title(aircraft, idx)
 
 
 def wait_for():
