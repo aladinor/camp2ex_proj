@@ -6,6 +6,7 @@ import glob
 import os
 import sys
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 from re import split
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
@@ -31,10 +32,17 @@ def title(aircraft, idx):
         return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - {aircraft} "
 
 
-def plot_temp(aircraft):
-    if aircraft == 'P3B':
-        fig = go.Figure()
-        fig.add_trace()
+def plot_temp(idx, df):
+    fig = make_subplots(rows=2, cols=1)
+    fig.add_trace(go.Scatter(x=df['local_time'], y=df['Temp'], name='Temperature', line_color="green"), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df['local_time'], y=df['Dew'], name='Dew point', line_color="blue"), row=1, col=1)
+    fig.add_vline(x=idx, line_width=2, line_dash="dash", line_color="black", row=1, col=1)
+    fig.update_yaxes(title='Temperature (°C)', row=1, col=1)
+    fig.add_trace(go.Scatter(x=df['local_time'], y=df['Palt'], line_color="blue"), row=2, col=1)
+    fig.add_vline(x=idx, line_width=2, line_dash="dash", line_color="black", row=2, col=1)
+    fig.update_yaxes(title='Altitude (ft)', row=2, col=1)
+    fig.update_layout(legend=dict(y=0.99, x=0.85), margin=dict(l=20, r=20, t=20, b=20))
+    return fig
 
 
 def psd_fig(_idx, ls_df):
@@ -52,24 +60,16 @@ def psd_fig(_idx, ls_df):
     fig.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
     fig.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
-    fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue",)
+    fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20))#, paper_bgcolor="LightSteelBlue", )
     return fig
 
 
-# def plot_map(aircraft, month, date, second):
-def plot_map(idx, aircraft):
-    if not aircraft or aircraft == "Learjet":
-        df = lear_df[-1]
-    else:
-        df = pd.read_pickle(ls_p3_merged[0])
-        df.rename(columns={' Latitude_YANG_MetNav': 'Lat', ' Longitude_YANG_MetNav': 'Long'}, inplace=True)
-
-    df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
+def plot_map(idx, df):
     lon_cent = df['Long'].mean()
     lat_cent = df['Lat'].mean()
     plane_lat = df.loc[df['local_time'] == idx, 'Lat']
     plane_lon = df.loc[df['local_time'] == idx, 'Long']
-    layout = go.Layout(autosize=True, width=600, height=600)
+    layout = go.Layout(autosize=True, width=550, height=550)
     fig = go.Figure(layout=layout)
     fig.add_trace(go.Scattermapbox(mode='lines',
                                    lon=df['Long'],
@@ -85,7 +85,7 @@ def plot_map(idx, aircraft):
         showlegend=False
     ))
     fig.update_layout(mapbox_style="open-street-map", mapbox_center_lat=lat_cent, mapbox_center_lon=lon_cent,
-                      mapbox=dict(zoom=5), margin=dict(l=20, r=20, t=20, b=20), paper_bgcolor="LightSteelBlue",)
+                      mapbox=dict(zoom=5), margin=dict(l=20, r=20, t=20, b=20))#, paper_bgcolor="LightSteelBlue", )
 
     return fig
 

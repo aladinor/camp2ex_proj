@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import glob
-from typing import List
-
 import pandas as pd
 import sys
 import os
 import numpy as np
+from sqlalchemy import create_engine
 from re import split, findall
-import xarray as xr
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
 
@@ -92,7 +90,10 @@ def ict2pkl(files, path_save):
         df_all = df_all.sort_index()
         path = f'{path_save}/{_aircraft.upper()}/all'
         make_dir(path)
-        df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
+        engine = create_engine('sqlite://', echo=False)
+
+        # df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
+        df_all.to_sql(f'{_type}_{_aircraft}')
     except IndexError:
         pass
 
