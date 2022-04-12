@@ -33,15 +33,26 @@ def title(aircraft, idx):
 
 
 def plot_temp(idx, df):
-    fig = make_subplots(rows=2, cols=1)
-    fig.add_trace(go.Scatter(x=df['local_time'], y=df['Temp'], name='Temperature', line_color="green"), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df['local_time'], y=df['Dew'], name='Dew point', line_color="blue"), row=1, col=1)
+    fig = make_subplots(rows=3, cols=1)
+
+    fig.append_trace(go.Scatter(x=df['local_time'], y=df['Temp'], name='Temperature', line_color="green",
+                                ), row=1, col=1)
+    fig.append_trace(go.Scatter(x=df['local_time'], y=df['Dew'], name='Dew point', line_color="blue"),
+                     row=1, col=1)
     fig.add_vline(x=idx, line_width=2, line_dash="dash", line_color="black", row=1, col=1)
     fig.update_yaxes(title='Temperature (°C)', row=1, col=1)
-    fig.add_trace(go.Scatter(x=df['local_time'], y=df['Palt'], line_color="blue"), row=2, col=1)
+
+    fig.append_trace(go.Scatter(x=df['local_time'], y=df['Palt'], line_color="red", name='Altitude'),
+                     row=2, col=1)
     fig.add_vline(x=idx, line_width=2, line_dash="dash", line_color="black", row=2, col=1)
     fig.update_yaxes(title='Altitude (ft)', row=2, col=1)
-    fig.update_layout(legend=dict(y=0.99, x=0.85), margin=dict(l=20, r=20, t=20, b=20))
+    fig.append_trace(go.Scatter(x=df['local_time'], y=df['NevLWC'], line_color="orange", name='Nev-LWC'),
+                     row=3, col=1)
+    fig.update_yaxes(title='LWC (gm-3)', row=3, col=1, range=[0, 4])
+    fig.add_vline(x=idx, line_width=2, line_dash="dash", line_color="black", row=3, col=1)
+
+    fig.update_layout(legend=dict(y=1.02, x=1, orientation="h", yanchor="bottom", xanchor="right"),
+                      margin=dict(l=20, r=20, t=20, b=20), height=500, width=625)
     return fig
 
 
@@ -60,7 +71,7 @@ def psd_fig(_idx, ls_df):
     fig.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
     fig.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
-    fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20))#, paper_bgcolor="LightSteelBlue", )
+    fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20))
     return fig
 
 
@@ -85,7 +96,7 @@ def plot_map(idx, df):
         showlegend=False
     ))
     fig.update_layout(mapbox_style="open-street-map", mapbox_center_lat=lat_cent, mapbox_center_lon=lon_cent,
-                      mapbox=dict(zoom=5), margin=dict(l=20, r=20, t=20, b=20))#, paper_bgcolor="LightSteelBlue", )
+                      mapbox=dict(zoom=5), margin=dict(l=20, r=20, t=20, b=20))
 
     return fig
 

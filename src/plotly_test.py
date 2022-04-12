@@ -123,6 +123,7 @@ LEFT_COLUMN = dbc.Card(
     ],
 )
 
+
 MIDDLE_COLUMN = dbc.Card(
     [
         dbc.CardHeader(html.H4("Results")),
@@ -137,9 +138,20 @@ MIDDLE_COLUMN = dbc.Card(
                 ),
                 dbc.Row(
                     [
-                        dbc.Col([dcc.Graph(id='plot-cop')]),
-                        dbc.Col([dcc.Graph(id='plot-temp-alt')]),
-                        dbc.Col([dcc.Graph(id='plot-map')]),
+                        dbc.Col(
+                            [
+                                dbc.Row([dcc.Graph(id='plot-cop')]),
+                                dbc.Row([dcc.Graph(id='plot-temp-alt')])
+                            ]
+                        ),
+                        dbc.Col(
+                            [
+                                dbc.Row([html.H5(html.Div('este campo esta vacio', className='text-center'))]),
+                                dbc.Row([dcc.Graph(id='plot-map')]),
+                                ]
+                        ),
+
+                        # dbc.Col([dcc.Graph(id='plot-map')]),
                     ],
                     align="start",  # className="g-0",
                 )
@@ -148,7 +160,6 @@ MIDDLE_COLUMN = dbc.Card(
         )
     ]
 )
-
 BODY = html.Div(
     [
         dbc.Row(
