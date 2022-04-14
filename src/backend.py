@@ -76,15 +76,21 @@ def psd_fig(_idx, ls_df):
 
 
 def plot_map(idx, df):
-    lon_cent = df['Long'].mean()
-    lat_cent = df['Lat'].mean()
+    lon_lat = df[['Long', 'Lat']].copy()
+    lon_lat = lon_lat.replace(0, pd.NA).dropna(how='any')
+    lon = lon_lat['Long']
+    lat = lon_lat['Lat']
+    lon_cent = lon.mean()
+    lat_cent = lat.mean()
     plane_lat = df.loc[df['local_time'] == idx, 'Lat']
     plane_lon = df.loc[df['local_time'] == idx, 'Long']
+    if (plane_lat.values == 0) or (plane_lon.values == 0):
+        plane_lat, plane_lon = pd.NA, pd.NA
     layout = go.Layout(autosize=True, width=550, height=550)
     fig = go.Figure(layout=layout)
     fig.add_trace(go.Scattermapbox(mode='lines',
-                                   lon=df['Long'],
-                                   lat=df['Lat'],
+                                   lon=lon,
+                                   lat=lat,
                                    showlegend=False
                                    )
                   )
