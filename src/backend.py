@@ -8,6 +8,8 @@ import sys
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from re import split
+from pytmatrix import tmatrix_aux, refractive, tmatrix, radar, scatter
+from pymiecoated import Mie
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -24,12 +26,69 @@ dt_sensor = [{"label": f"{i.attrs['type']}", "value": f"{i.attrs['type']}"} for 
 dt_aircraft = [{"label": 'P3B', 'value': 'P3B'}, {"label": 'Learjet', 'value': 'Learjet'}]
 
 
+def bcksct(ds, ar=1, j=0) -> dict:
+    """
+
+    :param ds: numpy array of particle diameters.
+    :param ar: axis ratio of the particle
+    :param j: Zenith angle input
+    :return:
+    """
+    x_ku = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_Ku
+    x_ka = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_Ka
+    x_w = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_W
+    # Tmatrix calculations
+    tmat_ku = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_Ku,
+                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ku], axis_ratio=1.0 / ar, thet0=j,
+                                                   thet=180 - j,
+                                                   phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
+               i in ds]
+    tmat_ka = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_Ka,
+                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ka], axis_ratio=1.0 / ar, thet0=j,
+                                                   thet=180 - j,
+                                                   phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
+               i in ds]
+    tmat_w = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_W,
+                                                  m=refractive.m_w_0C[tmatrix_aux.wl_W], axis_ratio=1.0 / ar, thet0=j,
+                                                  thet=180 - j,
+                                                  phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
+              i in ds]
+
+    # Mie calculations
+    mie_ku = [Mie(x=x_ku[w], m=refractive.m_w_0C[tmatrix_aux.wl_Ku]).qb() * np.pi * (i / 2.) ** 2 for w, i in
+              enumerate(ds)]
+    mie_ka = [Mie(x=x_ka[w], m=refractive.m_w_0C[tmatrix_aux.wl_Ka]).qb() * np.pi * (i / 2.) ** 2 for w, i in
+              enumerate(ds)]
+    mie_w = [Mie(x=x_w[w], m=refractive.m_w_0C[tmatrix_aux.wl_W]).qb() * np.pi * (i / 2.) ** 2 for w, i in
+             enumerate(ds)]
+
+    return {'T_mat_Ku': tmat_ku, 'T_mat_Ka': tmat_ka, 'T_mat_W': tmat_w, 'Mie_Ku': mie_ku, 'Mie_Ka': mie_ka,
+            'Mie_W': mie_w}
+
+
+def ref_calc(nd, mie=False):
+    backscatter = bcksct(np.array(nd.attrs['sizes'] / 1000))
+    dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)
+    if mie:
+        z_ku = 21.41375 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['Mie_Ku'] * nd.values * 1000 * dsizes)
+        z_ka = 8.5655 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['Mie_Ka'] * nd.values * 1000 * dsizes)
+        z_w = 3.15571 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['Mie_W'] * nd.values * 1000 * dsizes)
+        return pd.Series({'Ku': 10 * np.log10(z_ku), 'Ka': 10 * np.log10(z_ka), 'W': 10 * np.log10(z_w)},
+                         name=nd.attrs['instrument'])
+    else:
+        z_ku = 21.41375 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['T_mat_Ku'] * nd.values * 1000 * dsizes)
+        z_ka = 8.5655 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['T_mat_Ka'] * nd.values * 1000 * dsizes)
+        z_w = 3.15571 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['T_mat_W'] * nd.values * 1000 * dsizes)
+        return pd.Series({'Ku': 10 * np.log10(z_ku), 'Ka': 10 * np.log10(z_ka), 'W': 10 * np.log10(z_w)},
+                         name=nd.attrs['instrument'])
+
+
 def title(aircraft, idx):
     if (aircraft is None) or (idx is None):
         idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
         return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - Learjet"
     else:
-        return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - {aircraft} "
+        return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - {aircraft}"
 
 
 def plot_temp(idx, df):
@@ -56,15 +115,31 @@ def plot_temp(idx, df):
     return fig
 
 
+def z_table(_idx, ls_df):
+    ls_series = []
+    for i in ls_df:
+        inst = i.attrs['instrument']
+        print(inst)
+        if i.attrs['instrument'] not in ['FFSSP', 'FCDP', 'HawkFCDP']:
+            nd = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd')
+            z = ref_calc(nd=nd)
+            ls_series.append(z)
+        # except IndexError:
+        #     pass
+    return pd.concat(ls_series, axis=1)
+
+
 def psd_fig(_idx, ls_df):
     layout = go.Layout(autosize=True, width=600, height=600)
     fig = go.Figure(layout=layout)
     for i in ls_df:
         x = i.attrs['sizes']
         try:
-            y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0]
+            y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0] * 1000
             y = np.where(y > 0, y, np.nan)
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
+            if i.attrs['instrument'] == 'HVPS':
+                col = ref_calc(nd=i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd'))
         except IndexError:
             pass
     fig.update_traces(mode="lines", line_shape="vh")
