@@ -11,6 +11,7 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
 from re import split
+import plotly.graph_objects as go
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -19,6 +20,8 @@ from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_sec
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+
+df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/2014_usa_states.csv')
 
 PLOTLY_LOGO = f"{path_data}/data/CAMPEX_Logo_Lg.png"
 img = base64.b64encode(open(PLOTLY_LOGO, 'rb').read())
@@ -123,7 +126,6 @@ LEFT_COLUMN = dbc.Card(
     ],
 )
 
-
 MIDDLE_COLUMN = dbc.Card(
     [
         dbc.CardHeader(html.H4("Results")),
@@ -146,14 +148,14 @@ MIDDLE_COLUMN = dbc.Card(
                         ),
                         dbc.Col(
                             [
-                                dbc.Row([html.H5(html.Div('este campo esta vacio', className='text-center'))]),
+                                dbc.Row([dcc.Graph(id='plot-table')], justify="center",),
                                 dbc.Row([dcc.Graph(id='plot-map')]),
-                                ]
+                            ],
+
                         ),
 
-                        # dbc.Col([dcc.Graph(id='plot-map')]),
                     ],
-                    align="start",  # className="g-0",
+                    align="start",
                 )
 
             ]
@@ -264,7 +266,8 @@ def update_slider(minute=None, aircraft=None, sensor=None, date=None, hour=None,
     [Output('plot-cop', 'figure'),
      Output('plot-map', 'figure'),
      Output('title-output', 'children'),
-     Output('plot-temp-alt', 'figure')],
+     Output('plot-temp-alt', 'figure'),
+     Output('plot-table', 'figure')],
     [
         Input("time-slider", "value")
     ],
@@ -283,8 +286,8 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
         df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
         _lear_df = [i.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
                     for i in lear_df]
-        _test = z_table(_idx=idx, ls_df=_lear_df[:-1])
-        return psd_fig(_idx=idx, ls_df=_lear_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df),
+        return psd_fig(_idx=idx, ls_df=_lear_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df), \
+               z_table(_idx=idx, ls_df=_lear_df[:-1])
     else:
         idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
         if aircraft == 'P3B':
@@ -299,7 +302,7 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
             df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
             ls_df = [i for i in lear_df if i.attrs['type'] in sensor]
         df = df.replace(-999999.0, pd.NA)
-        _test =  z_table(_idx=idx, ls_df=ls_df)
+        _test = z_table(_idx=idx, ls_df=ls_df)
         return psd_fig(_idx=idx, ls_df=ls_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df)
 
 

@@ -10,7 +10,7 @@ from plotly.subplots import make_subplots
 from re import split
 from pytmatrix import tmatrix_aux, refractive, tmatrix, radar, scatter
 from pymiecoated import Mie
-
+from scipy.constants import c
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
 
@@ -29,7 +29,7 @@ dt_aircraft = [{"label": 'P3B', 'value': 'P3B'}, {"label": 'Learjet', 'value': '
 def bcksct(ds, ar=1, j=0) -> dict:
     """
 
-    :param ds: numpy array of particle diameters.
+    :param ds: numpy array of particle diameters. should be in millimeters
     :param ar: axis ratio of the particle
     :param j: Zenith angle input
     :return:
@@ -38,13 +38,13 @@ def bcksct(ds, ar=1, j=0) -> dict:
     x_ka = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_Ka
     x_w = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_W
     # Tmatrix calculations
-    tmat_ku = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_Ku,
-                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ku], axis_ratio=1.0 / ar, thet0=j,
+    tmat_ku = [radar.radar_xsect(tmatrix.Scatterer(radius=i/2., wavelength=tmatrix_aux.wl_Ku,
+                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ku], axis_ratio=1.0/ar, thet0=j,
                                                    thet=180 - j,
                                                    phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
                i in ds]
     tmat_ka = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_Ka,
-                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ka], axis_ratio=1.0 / ar, thet0=j,
+                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ka], axis_ratio=1.0/ar, thet0=j,
                                                    thet=180 - j,
                                                    phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
                i in ds]
@@ -67,18 +67,21 @@ def bcksct(ds, ar=1, j=0) -> dict:
 
 
 def ref_calc(nd, mie=False):
-    backscatter = bcksct(np.array(nd.attrs['sizes'] / 1000))
+    backscatter = bcksct(np.array(nd.attrs['sizes'] / 1e3))
     dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)
+    ku_wvl = c / 14e9 * 1000
+    ka_wvl = c / 35e9 * 1000
+    w_wvl = c / 95e9 * 1000
     if mie:
-        z_ku = 21.41375 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['Mie_Ku'] * nd.values * 1000 * dsizes)
-        z_ka = 8.5655 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['Mie_Ka'] * nd.values * 1000 * dsizes)
-        z_w = 3.15571 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['Mie_W'] * nd.values * 1000 * dsizes)
+        z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['Mie_Ku'] * nd.values * 1000 * dsizes)
+        z_ka = (ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['Mie_Ka'] * nd.values * 1000 * dsizes)
+        z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['Mie_W'] * nd.values * 1000 * dsizes)
         return pd.Series({'Ku': 10 * np.log10(z_ku), 'Ka': 10 * np.log10(z_ka), 'W': 10 * np.log10(z_w)},
                          name=nd.attrs['instrument'])
     else:
-        z_ku = 21.41375 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['T_mat_Ku'] * nd.values * 1000 * dsizes)
-        z_ka = 8.5655 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['T_mat_Ka'] * nd.values * 1000 * dsizes)
-        z_w = 3.15571 ** 4 / (np.pi ** 5 * 0.93) * np.sum(backscatter['T_mat_W'] * nd.values * 1000 * dsizes)
+        z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['T_mat_Ku'] * nd.values * 1000 * dsizes)
+        z_ka = (ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['T_mat_Ka'] * nd.values * 1000 * dsizes)
+        z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['T_mat_W'] * nd.values * 1000 * dsizes)
         return pd.Series({'Ku': 10 * np.log10(z_ku), 'Ka': 10 * np.log10(z_ka), 'W': 10 * np.log10(z_w)},
                          name=nd.attrs['instrument'])
 
@@ -115,18 +118,29 @@ def plot_temp(idx, df):
     return fig
 
 
-def z_table(_idx, ls_df):
+def z_table(_idx, ls_df) -> object:
     ls_series = []
     for i in ls_df:
-        inst = i.attrs['instrument']
-        print(inst)
         if i.attrs['instrument'] not in ['FFSSP', 'FCDP', 'HawkFCDP']:
             nd = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd')
             z = ref_calc(nd=nd)
             ls_series.append(z)
-        # except IndexError:
-        #     pass
-    return pd.concat(ls_series, axis=1)
+    df = pd.concat(ls_series, axis=1).T.round(2).reset_index().rename(columns={'index': 'Instrument'})
+    fig_table = go.Figure(
+            data=go.Table(
+                header=dict(
+                    values=[i if i == "Instrument" else f'{i} (dBZ)' for i in df.columns],
+                    align='center',
+                    font_size=18,
+                ),
+                cells=dict(
+                    values=[df[i] for i in df.columns],
+                    font_size=16,
+                )
+            )
+        )
+    fig_table.update_layout(width=600, height=600)
+    return fig_table
 
 
 def psd_fig(_idx, ls_df):
