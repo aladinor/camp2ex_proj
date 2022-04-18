@@ -67,7 +67,8 @@ def bcksct(ds, ar=1, j=0) -> dict:
 
 
 def ref_calc(nd, mie=False):
-    backscatter = bcksct(np.array(nd.attrs['sizes'] / 1e3))
+    ds = np.fromiter(nd.attrs['dsizes'].keys(), dtype=float) / 1e3
+    backscatter = bcksct(ds)
     dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
@@ -115,16 +116,16 @@ def plot_temp(idx, df):
 
     fig.update_layout(legend=dict(y=1.02, x=1, orientation="h", yanchor="bottom", xanchor="right"),
                       margin=dict(l=20, r=20, t=20, b=20), height=500, width=625)
+    fig.update_layout(autosize=True)
     return fig
 
 
 def z_table(_idx, ls_df) -> object:
     ls_series = []
     for i in ls_df:
-        if i.attrs['instrument'] not in ['FFSSP', 'FCDP', 'HawkFCDP']:
-            nd = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd')
-            z = ref_calc(nd=nd)
-            ls_series.append(z)
+        nd = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd')
+        z = ref_calc(nd=nd)
+        ls_series.append(z)
     df = pd.concat(ls_series, axis=1).T.round(2).reset_index().rename(columns={'index': 'Instrument'})
     fig_table = go.Figure(
             data=go.Table(
@@ -136,15 +137,16 @@ def z_table(_idx, ls_df) -> object:
                 cells=dict(
                     values=[df[i] for i in df.columns],
                     font_size=16,
+                    height=30
                 )
             )
         )
-    fig_table.update_layout(width=600, height=600)
+    fig_table.update_layout(autosize=True)
     return fig_table
 
 
 def psd_fig(_idx, ls_df):
-    layout = go.Layout(autosize=True, width=600, height=600)
+    layout = go.Layout(autosize=True)
     fig = go.Figure(layout=layout)
     for i in ls_df:
         x = i.attrs['sizes']
@@ -175,7 +177,7 @@ def plot_map(idx, df):
     plane_lon = df.loc[df['local_time'] == idx, 'Long']
     if (plane_lat.values == 0) or (plane_lon.values == 0):
         plane_lat, plane_lon = pd.NA, pd.NA
-    layout = go.Layout(autosize=True, width=550, height=550)
+    layout = go.Layout(autosize=True)
     fig = go.Figure(layout=layout)
     fig.add_trace(go.Scattermapbox(mode='lines',
                                    lon=lon,

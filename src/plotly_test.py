@@ -11,7 +11,6 @@ import dash_bootstrap_components as dbc
 from dash.dependencies import Output, Input, State
 from dash.exceptions import PreventUpdate
 from re import split
-import plotly.graph_objects as go
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -20,8 +19,6 @@ from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_sec
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
-
-df = pd.read_csv('https://raw.githubusercontent.com/plotly/datasets/master/2014_usa_states.csv')
 
 PLOTLY_LOGO = f"{path_data}/data/CAMPEX_Logo_Lg.png"
 img = base64.b64encode(open(PLOTLY_LOGO, 'rb').read())
@@ -142,23 +139,37 @@ MIDDLE_COLUMN = dbc.Card(
                     [
                         dbc.Col(
                             [
-                                dbc.Row([dcc.Graph(id='plot-cop')]),
-                                dbc.Row([dcc.Graph(id='plot-temp-alt')])
-                            ]
+                                dbc.Row([dcc.Graph(id='plot-cop')], justify="center",
+                                        style={"height": "100%"},  # , "background-color": "yellow"},
+                                        className="h-50", ),
+                                dbc.Row([dcc.Graph(id='plot-temp-alt')], justify="center",
+                                        style={"height": "100%"},  # , "background-color": "green"},
+                                        className="h-50", )
+                            ],
+                            align='center',
+                            width=6
                         ),
                         dbc.Col(
                             [
-                                dbc.Row([dcc.Graph(id='plot-table')], justify="center",),
-                                dbc.Row([dcc.Graph(id='plot-map')]),
+                                dbc.Row([dcc.Graph(id='plot-table')], justify="center",
+                                        style={"height": "100%"},  # , "background-color": "red"},
+                                        className="h-50",
+                                        ),
+                                dbc.Row([dcc.Graph(id='plot-map')], justify="center",
+                                        style={"height": "100%"},  # , "background-color": "blue"},
+                                        className="h-50", ),
+
                             ],
 
+                            align='center',
+                            width=6
                         ),
 
                     ],
-                    align="start",
                 )
 
-            ]
+            ],
+            style={"height": "1000vh"},
         )
     ]
 )
@@ -284,7 +295,7 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
         df = lear_df[-1]
         idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
         df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
-        _lear_df = [i.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
+        _lear_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
                     for i in lear_df]
         return psd_fig(_idx=idx, ls_df=_lear_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df), \
                z_table(_idx=idx, ls_df=_lear_df[:-1])
@@ -302,8 +313,8 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
             df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
             ls_df = [i for i in lear_df if i.attrs['type'] in sensor]
         df = df.replace(-999999.0, pd.NA)
-        _test = z_table(_idx=idx, ls_df=ls_df)
-        return psd_fig(_idx=idx, ls_df=ls_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df)
+        return psd_fig(_idx=idx, ls_df=ls_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df), \
+               z_table(_idx=idx, ls_df=ls_df)
 
 
 def wait_for():
@@ -327,5 +338,5 @@ def wait_for():
 
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8054)
+    app.run_server(host='127.0.0.1', port=8054, debug=True)
     pass
