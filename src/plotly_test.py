@@ -297,8 +297,8 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
         df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
         _lear_df = [i.groupby(by=i['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
                     for i in lear_df]
-        return psd_fig(_idx=idx, ls_df=_lear_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df), \
-               z_table(_idx=idx, ls_df=_lear_df[:-1])
+        return psd_fig(_idx=idx, ls_df=_lear_df), plot_map(idx, df), title(aircraft, idx), \
+               plot_temp(idx, df, aircraft=aircraft), z_table(_idx=idx, ls_df=_lear_df[:-1])
     else:
         idx = pd.to_datetime(minute) + pd.to_timedelta(int(second), unit='s')
         if aircraft == 'P3B':
@@ -307,14 +307,15 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
             df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
             df.rename(columns={' Latitude_YANG_MetNav': 'Lat', ' Longitude_YANG_MetNav': 'Long',
                                ' Pressure_Altitude_YANG_MetNav': 'Palt', ' Total_Air_Temp_YANG_MetNav': 'Temp',
-                               ' Dew_Point_YANG_MetNav': 'Dew'}, inplace=True)
+                               ' Dew_Point_YANG_MetNav': 'Dew', ' LWC_gm3_LAWSON': 'NevLWC'}, inplace=True)
+            # df = df[['Lat', 'Long', 'Temp', 'NevLWC', 'local_time', 'Dew']]
         else:
             df = lear_df[-1]  # temperature and other variables
             df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
             ls_df = [i for i in lear_df if i.attrs['type'] in sensor]
         df = df.replace(-999999.0, pd.NA)
-        return psd_fig(_idx=idx, ls_df=ls_df), plot_map(idx, df), title(aircraft, idx), plot_temp(idx, df), \
-               z_table(_idx=idx, ls_df=ls_df)
+        return psd_fig(_idx=idx, ls_df=ls_df), plot_map(idx, df), title(aircraft, idx), \
+               plot_temp(idx, df, aircraft=aircraft), z_table(_idx=idx, ls_df=ls_df)
 
 
 def wait_for():

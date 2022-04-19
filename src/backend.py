@@ -95,7 +95,7 @@ def title(aircraft, idx):
         return f"{idx: %Y-%m-%d %H:%M:%S} (Local time) - {aircraft}"
 
 
-def plot_temp(idx, df):
+def plot_temp(idx, df, aircraft):
     fig = make_subplots(rows=3, cols=1)
 
     fig.append_trace(go.Scatter(x=df['local_time'], y=df['Temp'], name='Temperature', line_color="green",
@@ -127,6 +127,7 @@ def z_table(_idx, ls_df) -> object:
         z = ref_calc(nd=nd)
         ls_series.append(z)
     df = pd.concat(ls_series, axis=1).T.round(2).reset_index().rename(columns={'index': 'Instrument'})
+    df = df.sort_values(by=df.columns[1])
     fig_table = go.Figure(
             data=go.Table(
                 header=dict(
@@ -154,12 +155,10 @@ def psd_fig(_idx, ls_df):
             y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0] * 1000
             y = np.where(y > 0, y, np.nan)
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
-            if i.attrs['instrument'] == 'HVPS':
-                col = ref_calc(nd=i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd'))
         except IndexError:
             pass
     fig.update_traces(mode="lines", line_shape="vh")
-    fig.update_yaxes(title_text="Concentration (#L-1 um-1)", type="log", showgrid=False, exponentformat='power',
+    fig.update_yaxes(title_text="Concentration (# / m3 um-1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
     fig.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
     fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20))
