@@ -5,7 +5,6 @@ import pandas as pd
 import sys
 import os
 import numpy as np
-from sqlalchemy import create_engine
 from re import split, findall
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
@@ -90,10 +89,9 @@ def ict2pkl(files, path_save):
         df_all = df_all.sort_index()
         path = f'{path_save}/{_aircraft.upper()}/all'
         make_dir(path)
-        engine = create_engine('sqlite://', echo=False)
-
+        str_db = 'sqlite:////media/alfonso/drive/Alfonso/camp2ex_proj/db/camp2ex.sqlite'
         # df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
-        df_all.to_sql(f'{_type}_{_aircraft}')
+        df_all.to_sql(f'{_type}_{_aircraft}', con=str_db, if_exists='replace')
     except IndexError:
         pass
 
