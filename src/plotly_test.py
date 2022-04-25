@@ -18,7 +18,7 @@ from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_sec
     psd_fig, lear_df, p3_df, ls_p3_merged, plot_temp, z_table
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
-path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 
 PLOTLY_LOGO = f"{path_data}/data/CAMPEX_Logo_Lg.png"
 img = base64.b64encode(open(PLOTLY_LOGO, 'rb').read())
@@ -308,7 +308,6 @@ def update_figure(second=None, aircraft=None, sensor=None, date=None, hour=None,
             df.rename(columns={' Latitude_YANG_MetNav': 'Lat', ' Longitude_YANG_MetNav': 'Long',
                                ' Pressure_Altitude_YANG_MetNav': 'Palt', ' Total_Air_Temp_YANG_MetNav': 'Temp',
                                ' Dew_Point_YANG_MetNav': 'Dew', ' LWC_gm3_LAWSON': 'NevLWC'}, inplace=True)
-            # df = df[['Lat', 'Long', 'Temp', 'NevLWC', 'local_time', 'Dew']]
         else:
             df = lear_df[-1]  # temperature and other variables
             df = df.groupby(by=df['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))

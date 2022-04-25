@@ -21,7 +21,7 @@ def rechunk(path, path_zarr):
 
 def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
-    path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+    path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
     folders = [i for i in glob.glob(f'{path_data}/zarr/*/*') if i.endswith('.zarr')]
     cluster = LocalCluster()
     client = Client(cluster)

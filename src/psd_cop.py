@@ -100,7 +100,7 @@ def ict2pkl(files, path_save):
 
 def main():
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
-    path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+    path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 
     instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
     aircraft = ['P3B', 'Learjet']

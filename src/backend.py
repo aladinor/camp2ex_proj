@@ -15,7 +15,7 @@ sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}
 from src.utils import get_pars_from_ini
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
-path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 ls_p3 = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
 ls_lear = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
 ls_p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/p3b*.pkl')

@@ -36,7 +36,7 @@ def link_finder(url, path, pi, sensor):
 
 def download_camp2ex(webpage):
     location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
-    path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+    path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
     sensor = webpage.split('?')[-1].split('=')[0]
     pi = webpage.split('#')[-1][:-1]
     path_save = f'{path_data}/data/{pi}/{sensor}'

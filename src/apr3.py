@@ -16,7 +16,7 @@ def hdf2xr(h5_path, groups=None, campaign='camp2ex'):
     :param h5_path: full path to the hdf5 file
     :return: a dictionary with groups as keys and datasets as values
     """
-    dt_params = get_pars_from_ini(campaign=campaign)
+    dt_params = get_pars_from_ini(file_name=campaign)
     h5f = h5py.File(h5_path, mode='r')
     if not groups:
         groups = [i[0] for i in h5f.items()]

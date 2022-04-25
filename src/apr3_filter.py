@@ -60,7 +60,7 @@ def find_events(path_file, ds_xr):
 
 def main():
     location = os.popen('hostname').read()[:-1]
-    path_data = get_pars_from_ini(campaign='loc')[location]['path_data']
+    path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
     ds_xr = xr.open_zarr(f'{path_data}/zarr/KUsKAs_Wn/lores.zarr')
     filtered = lee_filter(ds_xr.zhh14SP.sel(time='2019-09-16 03:13:00')[:, :, 0].values, 3)
     print('done!!!')
