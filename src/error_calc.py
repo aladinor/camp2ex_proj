@@ -22,14 +22,26 @@ def main():
     ls_df = [i for i in lear_df if i.attrs['type'] in sensor]
     dates = ls_df[0].index.intersection(ls_df[1].index)
     ds10 = ls_df[0].loc[dates].filter(like='nsd')
+    ds10['local_time'] = ls_df[0]['local_time'].loc[dates]
     hawkds10 = ls_df[1].loc[dates].filter(like='nsd')
+    hawkds10['local_time'] = ls_df[1]['local_time'].loc[dates]
     diff = ds10 - hawkds10
-    plt.figure(figsize=(25, 8))
+    diff['local_time'] = ds10['local_time']
+    idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
+    sept = diff.groupby(by=diff['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
+    df_nd = sept
+    plt.figure(figsize=(15, 4))
+    a = plt.pcolormesh(df_nd.index.values, df_nd.columns[:-1], np.log10(df_nd[df_nd.columns[:-1]].T), cmap='seismic')
+    plt.colorbar(a)
+    # plt.pcolormesh(diff[diff.columns[:-1]].T)
+    # plt.imshow(diff[diff.columns[:-1]].T, aspect='auto')
+
     # ax = sns.scatterplot(x=ds10[ds10.columns[0]], y=hawkds10[hawkds10.columns[0]])
-    ax1 = sns.boxplot(data=diff[diff.columns[15:35]])
-    ax1.set(yscale="log")
+    # ax1 = sns.boxplot(data=diff[diff.columns[15:35]])
+    # ax1.set(yscale="log")
     # ax1.set_xlim(-10e3, 10e3)
     # ax1.set_ylim(-10e3, 10e3)
+    plt.show()
     print(1)
     pass
 

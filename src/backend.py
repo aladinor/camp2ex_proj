@@ -81,6 +81,7 @@ def ref_calc(nd, mie=False):
                          name=nd.attrs['instrument'])
     else:
         z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['T_mat_Ku'] * nd.values * 1000 * dsizes)
+        zku_r = np.sum(nd.values * 1000 * (ds ** 6) * dsizes)
         z_ka = (ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['T_mat_Ka'] * nd.values * 1000 * dsizes)
         z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * np.sum(backscatter['T_mat_W'] * nd.values * 1000 * dsizes)
         return pd.Series({'Ku': 10 * np.log10(z_ku), 'Ka': 10 * np.log10(z_ka), 'W': 10 * np.log10(z_w)},
@@ -152,13 +153,13 @@ def psd_fig(_idx, ls_df):
     for i in ls_df:
         x = i.attrs['sizes']
         try:
-            y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0] * 1000
+            y = i.loc[i['local_time'] == _idx, i.columns].filter(like='nsd').values[0] * 1e6
             y = np.where(y > 0, y, np.nan)
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=i.attrs['type']))
         except IndexError:
             pass
     fig.update_traces(mode="lines", line_shape="vh")
-    fig.update_yaxes(title_text="Concentration (# / m3 um-1)", type="log", showgrid=False, exponentformat='power',
+    fig.update_yaxes(title_text="Concentration (# / m3 mm1)", type="log", showgrid=False, exponentformat='power',
                      showexponent='all')
     fig.update_xaxes(title_text="Diameter (um)", type="log", exponentformat='power', showexponent='all')
     fig.update_layout(legend=dict(y=0.99, x=0.7), margin=dict(l=20, r=20, t=20, b=20))
