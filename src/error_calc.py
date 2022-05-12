@@ -27,8 +27,10 @@ def multiple_plots(df, air):
     i = 0
     for _time, group in days:
         a = axs[i].pcolormesh(group.index.values, group.columns[:-1], np.log10(group[group.columns[:-1]].T),
-                           cmap='seismic',
-                           shading='auto', vmin=-3, vmax=3)
+                              cmap='seismic',
+                              shading='auto',
+                              vmin=-3, vmax=3
+                              )
         axs[i].set_title(f'{_time:%Y-%m-%d}')
         axs[i].xaxis.set_major_locator(HourLocator(byhour=range(0, 24, 1)))
         axs[i].xaxis.set_minor_locator(MinuteLocator(interval=15))
@@ -43,7 +45,7 @@ def multiple_plots(df, air):
     fig.supylabel("Diameter (um)", fontsize=12)
     fig.suptitle(f"2DS10 - Hawk2DS10 ({air})",  fontsize=14)
     plt.tight_layout()
-    fig.colorbar(a, label="Concentration (# m-3 um-1 )", ax=axs, pad=0.02, aspect=50)
+    fig.colorbar(a, label="Concentration (# L um-1 )", ax=axs, pad=0.02, aspect=50)
     plt.savefig(f'../results/multiple_diff_2ds10_{air}.jpg')
     # plt.show()
     print(1)
@@ -52,9 +54,11 @@ def multiple_plots(df, air):
 def single_plot(df_nd, air, idx):
     fig, ax = plt.subplots(figsize=(15, 4))
     a = plt.pcolormesh(df_nd.index.values, df_nd.columns[:-1], np.log10(df_nd[df_nd.columns[:-1]].T), cmap='seismic',
-                       shading='auto')
-    fig.colorbar(a, label="Concentration (# m-3 um-1 )", pad=0.02, aspect=50)
-    ax.set_xlabel("Local Time")
+                       shading='auto',
+                       vmin=-3, vmax=3
+                       )
+    fig.colorbar(a, label="Concentration (# L um-1 )", pad=0.02, aspect=50)
+    ax.set_xlabel("Time")
     ax.set_ylabel('Diameter (um)')
     ax.set_title(f'{idx:%Y-%m-%d}')
     y_labels = [tick.split('-')[-1] for tick in df_nd.filter(like='nsd').columns]
@@ -76,13 +80,13 @@ def main():
     ds10['local_time'] = ls_df[0]['local_time'].loc[dates]
     hawkds10 = ls_df[1].loc[dates].filter(like='nsd')
     hawkds10['local_time'] = ls_df[1]['local_time'].loc[dates]
-    diff = ds10 - hawkds10
+    diff = ds10.filter(like='nsd') - hawkds10.filter(like='nsd')
     diff['local_time'] = ds10['local_time']
-    idx = pd.Timestamp(year=2019, month=9, day=17, hour=10, minute=32, second=21, tz='Asia/Manila')
+    idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
     sept = diff.groupby(by=diff['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx.date(), tz='Asia/Manila'))
 
     single_plot(sept, ds10.attrs['aircraft'], idx)
-    multiple_plots(diff, ds10.attrs['aircraft'])
+    # multiple_plots(diff, ds10.attrs['aircraft'])
 
     sensor = ['2DS10', 'Hawk2DS10']
     ls_lear = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
@@ -93,14 +97,14 @@ def main():
     ds10['local_time'] = ls_df[0]['local_time'].loc[dates]
     hawkds10 = ls_df[1].loc[dates].filter(like='nsd')
     hawkds10['local_time'] = ls_df[1]['local_time'].loc[dates]
-    diff_2 = ds10 - hawkds10
+    diff_2 = ds10.filter(like='nsd') - hawkds10.filter(like='nsd')
     diff_2['local_time'] = ds10['local_time']
     idx_2 = pd.Timestamp(year=2019, month=9, day=17, hour=10, minute=32, second=21, tz='Asia/Manila')
     sept_2 = diff_2.groupby(by=diff_2['local_time'].dt.floor('d')).get_group(pd.Timestamp(idx_2.date(), tz='Asia/Manila'))
-
+    #
     single_plot(sept_2, ds10.attrs['aircraft'], idx)
-    multiple_plots(diff_2, ds10.attrs['aircraft'])
-    pass
+    # multiple_plots(diff_2, ds10.attrs['aircraft'])
+    # pass
 
 
 if __name__ == '__main__':

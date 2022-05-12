@@ -84,7 +84,7 @@ def main():
     path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 
     ls_p3 = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
-    ls_learjet = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
+    # ls_learjet = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
     p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/*pkl')
     p3_temp = pd.read_pickle(p3_merged[0])
     p3_df = [pd.read_pickle(i) for i in ls_p3]
@@ -97,12 +97,12 @@ def main():
         if temp:
             df = df[df['Temp'] >= 0]
         p3_df[i] = df
-    _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 100000].filter(like='nsd').index), 1)[0]
+    _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000000].filter(like='nsd').index), 1)[0]
     plot_nsd(p3_df, _idx)
     # days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                              'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
 
-    lear_df = [pd.read_pickle(i) for i in ls_learjet]
+    # lear_df = [pd.read_pickle(i) for i in ls_learjet]
     # This section is for comparing two instruments
     # days_lear = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                                'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in lear_df}
@@ -128,9 +128,9 @@ def main():
     # df2 = df2.loc[idx]
     # plot_scatter(df1, df2, fcdp, path_data, var)
     # plot_scatter_size(df1, df2, fcdp, path_data)
-    _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
-    plot_nsd(lear_df[:-1], _idx)
-    print(1)
+    # _idx = random.sample(list(lear_df[0][lear_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0]
+    # plot_nsd(lear_df[:-1], _idx)
+    # print(1)
 
 
 if __name__ == '__main__':
