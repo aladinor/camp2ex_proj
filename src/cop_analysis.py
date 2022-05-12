@@ -86,6 +86,7 @@ def main():
     ls_p3 = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
     # ls_learjet = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
     p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/*pkl')
+<<<<<<< HEAD
     p3_temp = pd.read_pickle(p3_merged[0])
     p3_df = [pd.read_pickle(i) for i in ls_p3]
     _attrs = [i.attrs for i in p3_df]
@@ -99,6 +100,23 @@ def main():
         p3_df[i] = df
     _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000000].filter(like='nsd').index), 1)[0]
     plot_nsd(p3_df, _idx)
+=======
+    # p3_temp = pd.read_pickle(p3_merged[0])
+    # p3_df = [pd.read_pickle(i) for i in ls_p3]
+    # _attrs = [i.attrs for i in p3_df]
+    # p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True) for i in p3_df]
+    # temp = 2
+    # for i, df in enumerate(p3_df):
+    #     df.attrs = _attrs[i]
+    #     df.rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
+    #     if temp:
+    #         df = df[df['Temp'] >= 0]
+    #     p3_df[i] = df
+    # _idx = random.sample(list(p3_df[0][p3_df[0]['conc'] > 10000].filter(like='nsd').index), 1)[0]
+    # ls_idx = [random.sample(list(p3_df[0][p3_df[0]['conc'] > 1000].filter(like='nsd').index), 1)[0] for i in range(10)]
+    # for _idx in ls_idx:
+    #     plot_nsd(p3_df, _idx)
+>>>>>>> c55b8848771bc7c2d8fbc4e56be4fdfea1d49e18
     # days_p3 = {i.attrs['type']: {'nrf': len(pd.Series(i.local_time).dt.floor('D').unique()),
     #                              'dates': pd.Series(i.local_time).dt.floor('D').unique()} for i in p3_df}
 
