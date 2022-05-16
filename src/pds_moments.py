@@ -38,6 +38,7 @@ def main():
     df_hvps = ls_df_lear[0]
     d = np.fromiter(df_hvps.attrs['dsizes'].keys(), dtype=float) / 1e3
     dd = np.fromiter(df_hvps.attrs['dsizes'].values(), dtype=float)
+<<<<<<< HEAD
     cols = df_hvps.filter(like='nsd').columns
     df_hvps[['lwc', 'dm', 'nw', 'z']] = \
         df_hvps.apply(lambda x: pds_parameters(nd=(x.filter(like='nsd').values * 1e3), d=d, dd=dd), axis=1)
@@ -58,6 +59,26 @@ def main():
     print('termine')
     plt.savefig('../results/hvps_norm_2.jpg')
     plt.show()
+=======
+    # cols = df_hvps.filter(like='nsd').columns
+    # df_hvps[['lwc', 'dm', 'nw', 'z']] = \
+    #     df_hvps.apply(lambda x: pds_parameters(nd=(x.filter(like='nsd').values * 1e3), d=d, dd=dd), axis=1)
+    # df_hvps = df_hvps.dropna(subset=['lwc'])
+    # # df_hvps_norm = df_hvps.filter(like='nsd') * 1e3 / df_hvps['nw']
+    # # df_hvps_norm['dm'] = df_hvps['dm']
+    # print('entre a la grafica')
+    # fig, ax = plt.subplots()
+    # for index, row in df_hvps.iterrows():
+    #     nd_norm = row[cols] * 1e3 / row['nw']
+    #     d_dm = d / row['dm']
+    #     ax.scatter(x=d_dm, y=nd_norm)
+    # ax.set_yscale('log')
+    # print('termine')
+    # plt.savefig('../results/hvps_norm.jpg')
+    # plt.show()
+    nd_test = df_hvps.loc[df_hvps['local_time'] == idx].filter(like='nsd').values * 1e3
+    pds_parameters(nd_test, d, dd)
+>>>>>>> 6c221911d5d1cc9929b6d708f3d1057c0b1f320f
     pass
 
 
