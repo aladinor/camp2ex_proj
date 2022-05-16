@@ -49,10 +49,14 @@ def main():
     for index, row in df_hvps.iterrows():
         nd_norm = row[cols] * 1e3 / row['nw']
         d_dm = d / row['dm']
-        ax.scatter(x=d_dm, y=nd_norm)
+        ax.scatter(x=d_dm, y=nd_norm, c='black', linewidths=0.01)
     ax.set_yscale('log')
+    ax.set_xlim(-1, 6)
+    ax.set_ylim(1e-10, 1e1)
+    ax.set_xlabel("D/Dm")
+    ax.set_ylabel("N(D)/Nw")
     print('termine')
-    plt.savefig('../results/hvps_norm.jpg')
+    plt.savefig('../results/hvps_norm_2.jpg')
     plt.show()
     pass
 
