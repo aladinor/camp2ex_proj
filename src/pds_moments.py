@@ -100,7 +100,7 @@ def main():
     aircraft = ls_df_lear[0].attrs['aircraft']
     df_hvps = ls_df_lear[0]
     cols = df_hvps.filter(like='nsd').columns
-    df_hvps[cols] = df_hvps[cols].mul(1e3)
+    df_hvps.loc[:, cols] = df_hvps[cols].mul(1e3)
     d_hvps = np.fromiter(df_hvps.attrs['dsizes'].keys(), dtype=float) / 1e3
     dd_hvps = np.fromiter(df_hvps.attrs['dsizes'].values(), dtype=float)
     df_hvps = df_hvps[df_hvps['Temp'] >= 2]
@@ -110,6 +110,8 @@ def main():
     plot_norm(df_hvps, d_hvps)
 
     df_2ds = ls_df_lear[1]
+    cols = df_2ds.filter(like='nsd').columns
+    df_2ds.loc[:, cols] = df_2ds[cols].mul(1e3)
     d_2ds10 = np.fromiter(df_2ds.attrs['dsizes'].keys(), dtype=float) / 1e3
     dd_2ds10 = np.fromiter(df_2ds.attrs['dsizes'].values(), dtype=float)
     df_2ds = df_2ds[df_2ds['Temp'] >= 2]
