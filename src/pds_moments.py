@@ -10,6 +10,8 @@ import operator
 import pandas as pd
 from re import split
 from datetime import datetime
+import matplotlib
+matplotlib.use('agg')
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -20,15 +22,20 @@ ls_p3 = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
 ls_lear = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
 
 
+def vel(d):
+    return -0.1021 + 4.932 * d -0.955 * d ** 2 + 0.07934 * d ** 3 - 0.0023626 * d ** 4
+
+
 def pds_parameters(nd, d, dd):
     try:
         lwc = (np.pi / 6) * 1e-3 * np.sum(nd * d ** 3 * dd)  # g / m3
         dm = np.sum(nd * d ** 4 * dd) / np.sum(nd * d ** 3 * dd)  # mm
         nw = 1e3 * (4 ** 4 / np.pi) * (lwc / dm ** 4)
         z = np.sum(nd * d ** 6 * dd)
-        return pd.Series([lwc, dm, nw, z])
+        r = np.pi * 6e-4 * np.sum(nd * d ** 3 * vel(d) * dd)
+        return pd.Series([lwc, dm, nw, z, r])
     except ZeroDivisionError:
-        return pd.Series([np.nan, np.nan, np.nan, np.nan])
+        return pd.Series([np.nan, np.nan, np.nan, np.nan, np.nan])
 
 
 def plot_norm(df, d):
@@ -42,11 +49,13 @@ def plot_norm(df, d):
         sc1 = ax1.scatter(x=d_dm, y=nd_norm, s=0.01, c=nd_norm)
     ax1.set_yscale('log')
     ax1.set_xlabel("D/Dm")
-    ax1.set_xlim(-1, 12)
-    ax1.set_ylim(1e-12, 1e2)
+    ax1.set_xlim(-1, 14)
+    ax1.set_ylim(1e-16, 1e3)
     ax1.set_ylabel("N(D)/Nw")
     ax1.set_title(f"{df.attrs['instrument']} on {df.attrs['aircraft']}")
-    plt.colorbar(sc1, ax=ax1)
+    cbar = plt.colorbar(sc1, ax=ax1)
+    cbar.set_label('Scaled DSD - N(D) / NW )')
+    cbar.formatter.set_powerlimits((0, 0))
     plt.savefig(f"../results/{df.attrs['aircraft']}_{df.attrs['instrument']}.jpg", dpi=400)
     plt.close('all')
     end_time = datetime.now()
@@ -89,73 +98,58 @@ def merge_df(df_2ds10, df_hvps):
 
 def main():
     instruments = ['HVPS', '2DS10', 'Page0']
-    ls_df_lear = [[pd.read_pickle(i) for i in ls_lear if instrument in i] for instrument in instruments]
-    ls_df_lear = functools.reduce(operator.iconcat, ls_df_lear, [])
-    attrs = [i.attrs for i in ls_df_lear]
+    for k in [ls_p3, ls_lear]:
+        ls_df_lear = [[pd.read_pickle(i) for i in k if instrument in i] for instrument in instruments]
+        ls_df_lear = functools.reduce(operator.iconcat, ls_df_lear, [])
+        attrs = [i.attrs for i in ls_df_lear]
 
-    ls_df_lear = [pd.merge(i, ls_df_lear[-1][["Temp"]], left_index=True, right_index=True) for i in ls_df_lear[:-1]]
-    for i, atrs in enumerate(attrs[:-1]):
-        ls_df_lear[i].attrs = atrs
+        if attrs[0]['aircraft'] == 'Learjet':
+            ls_df_lear = [pd.merge(i, ls_df_lear[-1][["Temp"]], left_index=True, right_index=True) for i in ls_df_lear[:-1]]
+        else:
+            p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/*pkl')
+            p3_temp = pd.read_pickle(p3_merged[0])
+            ls_df_lear = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True)
+                          for i in ls_df_lear]
 
-    aircraft = ls_df_lear[0].attrs['aircraft']
-    df_hvps = ls_df_lear[0]
-    cols = df_hvps.filter(like='nsd').columns
-    df_hvps.loc[:, cols] = df_hvps[cols].mul(1e3)
-    d_hvps = np.fromiter(df_hvps.attrs['dsizes'].keys(), dtype=float) / 1e3
-    dd_hvps = np.fromiter(df_hvps.attrs['dsizes'].values(), dtype=float)
-    df_hvps = df_hvps[df_hvps['Temp'] >= 2]
-    df_hvps[['lwc', 'dm', 'nw', 'z']] = \
-        df_hvps.apply(lambda x: pds_parameters(nd=x.filter(like='nsd').values, d=d_hvps, dd=dd_hvps), axis=1)
-    df_hvps = df_hvps.dropna(subset=['lwc'])
-    plot_norm(df_hvps, d_hvps)
+        for i, atrs in enumerate(attrs[:-1]):
+            ls_df_lear[i].attrs = atrs
+            if ls_df_lear[i].attrs['aircraft'] == 'P3B':
+                ls_df_lear[i].rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
 
-    df_2ds = ls_df_lear[1]
-    cols = df_2ds.filter(like='nsd').columns
-    df_2ds.loc[:, cols] = df_2ds[cols].mul(1e3)
-    d_2ds10 = np.fromiter(df_2ds.attrs['dsizes'].keys(), dtype=float) / 1e3
-    dd_2ds10 = np.fromiter(df_2ds.attrs['dsizes'].values(), dtype=float)
-    df_2ds = df_2ds[df_2ds['Temp'] >= 2]
-    df_2ds[['lwc', 'dm', 'nw', 'z']] = \
-        df_2ds.apply(lambda x: pds_parameters(nd=x.filter(like='nsd').values, d=d_2ds10, dd=dd_2ds10), axis=1)
-    df_2ds = df_2ds.dropna(subset=['lwc'])
-    plot_norm(df_2ds, d_2ds10)
+        aircraft = ls_df_lear[0].attrs['aircraft']
+        print(aircraft)
+        df_hvps = ls_df_lear[0]
+        cols = df_hvps.filter(like='nsd').columns
+        df_hvps.loc[:, cols] = df_hvps[cols].mul(1e3)
+        d_hvps = np.fromiter(df_hvps.attrs['dsizes'].keys(), dtype=float) / 1e3
+        dd_hvps = np.fromiter(df_hvps.attrs['dsizes'].values(), dtype=float)
+        df_hvps = df_hvps[df_hvps['Temp'] >= 2]
+        df_hvps[['lwc', 'dm', 'nw', 'z', 'r']] = \
+            df_hvps.apply(lambda x: pds_parameters(nd=x.filter(like='nsd').values, d=d_hvps, dd=dd_hvps), axis=1)
+        df_hvps = df_hvps.dropna(subset=['lwc'])
+        df_hvps.to_pickle(f"../results/df_{df_hvps.attrs['instrument']}_{df_hvps.attrs['aircraft']}_norm.pkl")
+        plot_norm(df_hvps, d_hvps)
 
-    df_merged = merge_df(df_2ds10=df_2ds, df_hvps=df_hvps)
-    df_merged = df_merged[df_merged['Temp'] >= 2]
-    d_merged = np.fromiter(df_merged.attrs['dsizes'].keys(), dtype=float) / 1e3
-    dd_merged = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
-    df_merged[['lwc', 'dm', 'nw', 'z']] = \
-        df_merged.apply(lambda x: pds_parameters(nd=(x.filter(like='nsd').values * 1e3), d=d_merged, dd=dd_merged), axis=1)
-    plot_norm(df_merged, d_merged)
+        df_2ds = ls_df_lear[1]
+        cols = df_2ds.filter(like='nsd').columns
+        df_2ds.loc[:, cols] = df_2ds[cols].mul(1e3)
+        d_2ds10 = np.fromiter(df_2ds.attrs['dsizes'].keys(), dtype=float) / 1e3
+        dd_2ds10 = np.fromiter(df_2ds.attrs['dsizes'].values(), dtype=float)
+        df_2ds = df_2ds[df_2ds['Temp'] >= 2]
+        df_2ds[['lwc', 'dm', 'nw', 'z', 'r']] = \
+            df_2ds.apply(lambda x: pds_parameters(nd=x.filter(like='nsd').values, d=d_2ds10, dd=dd_2ds10), axis=1)
+        df_2ds = df_2ds.dropna(subset=['lwc'])
+        df_2ds.to_pickle(f"../results/df_{df_2ds.attrs['instrument']}_{df_2ds.attrs['aircraft']}_norm.pkl")
+        plot_norm(df_2ds, d_2ds10)
 
-    # df_merged.to_csv('../results/df_merged_norm.csv')
-    # df_merged = pd.read_csv('../results/df_merged_norm.csv')
-    # # print('entre a la grafica')
-
-
-    #
-    #
-    # idx = pd.Timestamp(year=2019, month=9, day=7, hour=10, minute=32, second=21, tz='Asia/Manila')
-    #
-    # df_hvps = ls_df_lear[0]
-    # # df_hvps[['lwc', 'dm', 'nw', 'z']] = \
-    # #     df_hvps.apply(lambda x: pds_parameters(nd=(x.filter(like='nsd').values * 1e3), d=d_hvps, dd=dd_hvps), axis=1)
-    # # df_hvps = df_hvps.dropna(subset=['lwc'])
-    # # df_hvps = df_hvps[df_hvps['Temp'] >= 2]
-    # # df_hvps.to_csv('../results/df_hvps_norm.csv')
-    # # df_hvps = pd.read_csv('../results/df_hvps_norm.csv')
-    #
-    # df_2ds = ls_df_lear[1]
-    # # nd_test_hvps = df_hvps.loc[df_hvps['local_time'] == idx].filter(like='nsd').values * 1e3
-    # # nd_test_2ds10 = ls_df_lear[1].loc[ls_df_lear[1]['local_time'] == idx].filter(like='nsd').values * 1e3
-    #
-    # # plot_psd(psd1=nd_test_2ds10, psd1_d=d_2ds10, psd2=nd_test_hvps,
-    # #          psd2_d=d_hvps, _idx=idx, aircraft=aircraft)
-    #
-    # # pds_parameters(nd_test_hvps, d_hvps, dd_hvps)
-
-    print('termine')
-    pass
+        df_merged = merge_df(df_2ds10=df_2ds, df_hvps=df_hvps)
+        df_merged = df_merged[df_merged['Temp'] >= 2]
+        d_merged = np.fromiter(df_merged.attrs['dsizes'].keys(), dtype=float) / 1e3
+        dd_merged = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
+        df_merged[['lwc', 'dm', 'nw', 'z', 'r']] = \
+            df_merged.apply(lambda x: pds_parameters(nd=(x.filter(like='nsd').values * 1e3), d=d_merged, dd=dd_merged), axis=1)
+        plot_norm(df_merged, d_merged)
+        df_merged.to_pickle(f"../results/df_{df_merged.attrs['instrument']}_{df_merged.attrs['aircraft']}_norm.pkl")
 
 
 if __name__ == '__main__':
