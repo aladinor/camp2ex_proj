@@ -9,6 +9,9 @@ from re import split, findall
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
 
+location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
+path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
+
 
 def moment_nth(sr_nd, dict_diameters, moment):
     mn = sr_nd * dict_diameters['delta_diam'] * dict_diameters['diameters'] ** moment
@@ -88,17 +91,18 @@ def ict2pkl(files, path_save):
         df_all.attrs = attrs
         df_all = df_all.sort_index()
         path = f'{path_save}/{_aircraft.upper()}/all'
+        path_db = f'{path_data}/db'
         make_dir(path)
-        str_db = 'sqlite:////media/alfonso/drive/Alfonso/camp2ex_proj/db/camp2ex.sqlite'
+        make_dir(path_db)
+        str_db = f"sqlite:///{path_db}/camp2ex.sqlite"
         # df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
         df_all.to_sql(f'{_type}_{_aircraft}', con=str_db, if_exists='replace')
+        del df_all
     except IndexError:
         pass
 
 
 def main():
-    location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
-    path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 
     instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
     aircraft = ['P3B', 'Learjet']
@@ -109,9 +113,9 @@ def main():
         if files:
             ict2pkl(files, path_save)
 
-    # files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
-    # path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
-    # ict2pkl(files, path_save=path_save)
+    files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
+    path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
+    ict2pkl(files, path_save=path_save)
 
 
 if __name__ == '__main__':
