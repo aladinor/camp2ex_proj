@@ -23,7 +23,7 @@ ls_lear = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
 
 
 def vel(d):
-    return -0.1021 + 4.932 * d -0.955 * d ** 2 + 0.07934 * d ** 3 - 0.0023626 * d ** 4
+    return -0.1021 + 4.932 * d - 0.955 * d ** 2 + 0.07934 * d ** 3 - 0.0023626 * d ** 4
 
 
 def pds_parameters(nd, d, dd):
@@ -47,6 +47,32 @@ def plot_norm(df, d):
         nd_norm = row[cols] / row['nw']
         d_dm = d / row['dm']
         sc1 = ax1.scatter(x=d_dm, y=nd_norm, s=0.01, c=nd_norm)
+    ax1.set_yscale('log')
+    ax1.set_xlabel("D/Dm")
+    ax1.set_xlim(-1, 14)
+    ax1.set_ylim(1e-16, 1e3)
+    ax1.set_ylabel("N(D)/Nw")
+    ax1.set_title(f"{df.attrs['instrument']} on {df.attrs['aircraft']}")
+    cbar = plt.colorbar(sc1, ax=ax1)
+    cbar.set_label('Scaled DSD - N(D) / NW )')
+    cbar.formatter.set_powerlimits((0, 0))
+    plt.savefig(f"../results/{df.attrs['aircraft']}_{df.attrs['instrument']}.jpg", dpi=400)
+    plt.close('all')
+    end_time = datetime.now()
+    print('Duration: {}'.format(end_time - start_time))
+
+
+def plot_hist2d(df, d):
+    start_time = datetime.now()
+    cols = df.filter(like='nsd').columns
+    fig, ax1 = plt.subplots(figsize=(8, 6))
+    # for index, row in df.iterrows():
+    #     nd_norm = row[cols] / row['nw']
+    #     d_dm = d / row['dm']
+    #     sc1 = ax1.scatter(x=d_dm, y=nd_norm, s=0.01, c=nd_norm)
+    x = df[cols].div(df['nw'], axis=0)
+    y = pd.DataFrame(np.tile(d, (len(df), 1)), index=df.index, columns=[f'd{i}' for i in d]).div(df['dm'], axis=0)
+    sc1 = ax1.hist2d(x, y)
     ax1.set_yscale('log')
     ax1.set_xlabel("D/Dm")
     ax1.set_xlim(-1, 14)
@@ -116,19 +142,21 @@ def main():
             if ls_df_lear[i].attrs['aircraft'] == 'P3B':
                 ls_df_lear[i].rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
 
-        aircraft = ls_df_lear[0].attrs['aircraft']
-        print(aircraft)
-        df_hvps = ls_df_lear[0]
-        cols = df_hvps.filter(like='nsd').columns
-        df_hvps.loc[:, cols] = df_hvps[cols].mul(1e3)
+        # aircraft = ls_df_lear[0].attrs['aircraft']
+        # df_hvps = ls_df_lear[0]
+        # cols = df_hvps.filter(like='nsd').columns
+        # df_hvps.loc[:, cols] = df_hvps[cols].mul(1e3)
+        # d_hvps = np.fromiter(df_hvps.attrs['dsizes'].keys(), dtype=float) / 1e3
+        # dd_hvps = np.fromiter(df_hvps.attrs['dsizes'].values(), dtype=float)
+        # df_hvps = df_hvps[df_hvps['Temp'] >= 2]
+        # df_hvps[['lwc', 'dm', 'nw', 'z', 'r']] = \
+        #     df_hvps.apply(lambda x: pds_parameters(nd=x.filter(like='nsd').values, d=d_hvps, dd=dd_hvps), axis=1)
+        # df_hvps = df_hvps.dropna(subset=['lwc'])
+        # df_hvps.to_pickle(f"../results/df_{df_hvps.attrs['instrument']}_{df_hvps.attrs['aircraft']}_norm.pkl")
+        df_hvps = pd.read_pickle("../results/df_HVPS_P3B_norm.pkl")
         d_hvps = np.fromiter(df_hvps.attrs['dsizes'].keys(), dtype=float) / 1e3
-        dd_hvps = np.fromiter(df_hvps.attrs['dsizes'].values(), dtype=float)
-        df_hvps = df_hvps[df_hvps['Temp'] >= 2]
-        df_hvps[['lwc', 'dm', 'nw', 'z', 'r']] = \
-            df_hvps.apply(lambda x: pds_parameters(nd=x.filter(like='nsd').values, d=d_hvps, dd=dd_hvps), axis=1)
-        df_hvps = df_hvps.dropna(subset=['lwc'])
-        df_hvps.to_pickle(f"../results/df_{df_hvps.attrs['instrument']}_{df_hvps.attrs['aircraft']}_norm.pkl")
-        plot_norm(df_hvps, d_hvps)
+        plot_hist2d(df_hvps.head(1000), d_hvps)
+        # plot_norm(df_hvps, d_hvps)
 
         df_2ds = ls_df_lear[1]
         cols = df_2ds.filter(like='nsd').columns
