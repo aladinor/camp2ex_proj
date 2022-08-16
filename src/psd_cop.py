@@ -5,6 +5,8 @@ import pandas as pd
 import sys
 import os
 import numpy as np
+import xarray as xr
+from zarr.errors import ContainsGroupError
 from re import split, findall
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
@@ -21,7 +23,8 @@ def moment_nth(sr_nd, dict_diameters, moment):
 class Ict2df(object):
     def __init__(self, _file):
         self.path_file = _file
-        self.dt, self.dt_sizes, self.sizes, self.header, self.file_type, self.bin_cent = self._get_meta()
+        self.dt, self.dt_sizes, self.sizes, self.header, self.file_type, self.bin_cent, self.intervals, \
+        self.na_vals, self.units = self._get_meta()
         self.instrument = self.path_file.split('/')[-1].split('-')[-1].split('_')[0]
         self.aircraft = self.path_file.split('/')[-1].split('-')[-1].split('_')[1]
         self.df = self._read_file()
@@ -30,47 +33,49 @@ class Ict2df(object):
         with open(self.path_file, 'r') as f:
             lines: list[str] = f.readlines()
             header, file_type = findall(r"\d*\.\d+|\d+", lines[0])
+            units = list(set([i.replace("'", "").split(",")[1] for i in lines if i.startswith('cbin')]))
             try:
-                sizes = np.array([float(''.join(findall(r"\d*\.\d+|\d+", i[i.find('(') + 1: i.find(')')])[:1]))
-                                  for i in lines[:200] if i.startswith('cbin')])
-                dsizes = sizes[1:] - sizes[:-1]
-                dsizes = np.append(dsizes, dsizes[-1])
-                bin_cent = (sizes[1:] - sizes[:-1]) / 2 + sizes[:-1]
-                bin_cent = np.append(bin_cent, sizes[-1] + dsizes[-1])
-                dt_sizes = {i: j for i, j in zip(bin_cent, dsizes)}
+                intervals = [list(map(float, findall(r"\d*\.\d+|\d+", lines[i])[1:]))
+                             for i in range(len(lines)) if lines[i].startswith('cbin')]
+                intervals = [pd.Interval(*i) for i in intervals[:-1]]
+                intervals.append(intervals[-1] + intervals[-1].length)
+                sizes = np.array([i.left for i in intervals])
+                dsizes = np.array([i.length for i in intervals])
+                bin_cent = np.array([i.mid for i in intervals])
+                na_val = np.array(list(set([float(i) for i in lines[11].replace("'", "").split(',')])), dtype='float64')
                 try:
                     dt = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
-                    return dt, dt_sizes, sizes, int(header) - 1, file_type, bin_cent
+                    return dt, dsizes, sizes, int(header) - 1, file_type, bin_cent, intervals, na_val, units
                 except ValueError:
                     dt = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
-                    return dt, dt_sizes, sizes, int(header) - 1, file_type, bin_cent
+                    return dt, dsizes, sizes, int(header) - 1, file_type, bin_cent, intervals, na_val, units
             except IndexError:
                 try:
                     dt = pd.to_datetime(''.join(lines[6].split(',')[:3]), format='%Y%m%d', utc=True)
-                    return dt, None, None, int(header) - 1, file_type, None
+                    return dt, None, None, int(header) - 1, file_type, None, None, None, None
                 except ValueError:
                     dt = pd.to_datetime(''.join(lines[6].split(',')[:3]).replace(' ', ''), format='%Y%m%d', utc=True)
-                    return dt, None, None, int(header) - 1, file_type, None
+                    return dt, None, None, int(header) - 1, file_type, None, None, None, None
             pass
 
     def _read_file(self):
-        df = pd.read_csv(self.path_file, skiprows=self.header, header=0, na_values=[-999, -9.99])
+        df = pd.read_csv(self.path_file, skiprows=self.header, header=0, na_values=self.na_vals)
         df['time'] = df.Time_Start.map(lambda x: self.dt + pd.to_timedelta(x, unit='seconds'))
         df['time'] = df['time'].map(lambda x: x.to_datetime64())
         df.index = df['time'].dt.tz_localize('utc')
         df['local_time'] = df['time'].dt.tz_localize('utc').dt.tz_convert('Asia/Manila')
         df.drop(columns=['time'], axis=1, inplace=True)
         df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent, 'aircraft': self.aircraft,
-                    'instrument': self.instrument}
+                    'instrument': self.instrument, 'intervals': self.intervals, 'psd_units': self.units}
         try:
             cols = df.filter(like='cbin', axis=1).columns.tolist()
-            names = [f'nsd {self.sizes[i]}-{self.sizes[i + 1]}' for i, j in enumerate(self.sizes[:-1])]
-            names.append(f'nsd >{self.sizes[-1]}')
+            names = [f'nsd {i.left}-{i.right}' for i in self.intervals[:-1]]
+            names.append(f'nsd >{self.intervals[-1].left}')
             if (self.aircraft == 'P3B') and (self.instrument == 'Hawk2DS50'):
                 names = ['nsd 3025.0-3250.0' if (item == 'nsd 3025.0-3225.0') or
-                         (item == 'nsd 3025.0-3275.0') else item for item in names]
+                                                (item == 'nsd 3025.0-3275.0') else item for item in names]
                 names = ['nsd 3250.0-3525.0' if (item == 'nsd 3225.0-3525.0') or
-                         (item == 'nsd 3275.0-3525.0') else item for item in names]
+                                                (item == 'nsd 3275.0-3525.0') else item for item in names]
             dt_cols = {j: names[i] for i, j in enumerate(cols)}
             df = df.rename(columns=dt_cols)
             return df
@@ -90,13 +95,46 @@ def ict2pkl(files, path_save):
         df_all = pd.concat(ls_pd)
         df_all.attrs = attrs
         df_all = df_all.sort_index()
-        path = f'{path_save}/{_aircraft.upper()}/all'
-        path_db = f'{path_data}/db'
-        make_dir(path)
-        make_dir(path_db)
-        str_db = f"sqlite:///{path_db}/camp2ex.sqlite"
-        # df_all.to_pickle(f'{path}/{_type}_{_aircraft}.pkl')
-        df_all.to_sql(f'{_type}_{_aircraft}', con=str_db, if_exists='replace')
+
+        # # pickle
+        # path_pk = f'{path_data}/pkl'
+        # make_dir(path_pk)
+        # df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
+        #
+        # # parquet
+        # path_par = f'{path_data}/parquet'
+        # make_dir(path_par)
+        # df_all.to_parquet(f'{path_par}/{_type}_{_aircraft}.parquet', index=True)
+
+        # zarr
+        nsd = df_all.filter(like='nsd').columns.to_list()
+        other = [i for i in df_all.columns.to_list() if not (i.startswith('nsd') | i.startswith('Time') |
+                                                             i.startswith('local'))]
+        data_dict = {'pds': (["time", "diameter"], df_all[nsd].to_numpy())}
+        other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
+        local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
+        data = data_dict | other_dict | local_t
+        attrs = df_all.attrs
+        del attrs['intervals']
+        xr_data = xr.Dataset(
+            data_vars=data,
+            coords=dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])),
+                        diameter=(["diameter"], df_all.attrs['bin_cent'])),
+            attrs=attrs
+        )
+        path_zarr = f'{path_data}/zarr'
+        make_dir(path_zarr)
+        store = f"{path_zarr}/{df_all.attrs['instrument']}_{df_all.attrs['aircraft']}.zarr"
+        try:
+            _ = xr_data.to_zarr(store=store, consolidated=True)
+        except ContainsGroupError:
+            print(f"{df_all.attrs['instrument']}_{df_all.attrs['aircraft']}.zarr already exist. Delete it first!")
+
+        # # for db
+        # path_db = f'{path_data}/db'
+        # make_dir(path_db)
+        # str_db = f"sqlite:///{path_db}/camp2ex.sqlite"
+        # df_all.to_sql(f'{_type}_{_aircraft}', con=str_db, if_exists='replace')
         del df_all
     except IndexError:
         pass
