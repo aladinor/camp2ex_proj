@@ -173,7 +173,9 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
         nd_overlap = nd_overlap.reindex(df1[cond1].index.mid)
         nd_overlap.index = df1[cond1].index
         res = pd.concat([df1[df1.index.mid <= ovr_lower], nd_overlap['nd_res'], df2[df2.index.mid >= ovr_upp]])
+        dd = {i.mid: i.length for i in res.index}
         res.index = res.index.mid
+        res.attrs['dsizes'] = dd
         return res
 
     elif 'snal':
@@ -192,7 +194,9 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
         res = res.reindex(df1[cond1].index.mid)
         res.index = df1[cond1].index
         res = pd.concat([df1[df1.index.mid <= ovr_lower], res, df2[df2.index.mid >= ovr_upp]])
+        dd = {i.mid: i.length for i in res.index}
         res.index = res.index.mid
+        res.attrs['dsizes'] = dd
         return res
 
 
@@ -209,21 +213,22 @@ def pds_parameters(nd):
     try:
         d = np.fromiter(nd.index, dtype=float) / 1e3  # diameter in millimeters
         dd = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)  # d_size in um
-        lwc = (np.pi / 6) * np.sum(nd * d ** 3 * dd)  # g / m3
+        lwc = (np.pi / (6 * 1000)) * np.sum((nd * 1e6) * d ** 3 * (dd * 1e-3))  # g / m3
         dm = np.sum(nd * d ** 4 * dd) / np.sum(nd * d ** 3 * dd)  # mm
         nw = 1e3 * (4 ** 4 / np.pi) * (lwc / dm ** 4)
         z = np.sum(nd * d ** 6 * dd)
         r = np.pi * 6e-4 * np.sum(nd * d ** 3 * vel(d) * dd)
-        # ref = ref_calc(nd=nd, d=d, dd=dd)
-        # return pd.Series([lwc, dm, nw, z, r])
         return [lwc, dm, nw, z, r]
     except ZeroDivisionError:
         return [np.nan, np.nan, np.nan, np.nan, np.nan]
 
 
-def bcksct(ds, instrument, ar=1, j=0) -> pd.DataFrame:
+def bcksct(ds, instrument, _lower, _upper, ar=1, j=0) -> pd.DataFrame:
     """
 
+    :param _upper: upper diameter of the pds
+    :param _lower: upper diameter of the pds
+    :param instrument:
     :param ds: numpy array of particle diameters. should be in millimeters
     :param ar: axis ratio of the particle
     :param j: Zenith angle input
@@ -260,20 +265,20 @@ def bcksct(ds, instrument, ar=1, j=0) -> pd.DataFrame:
         {'T_mat_Ku': tmat_ku, 'T_mat_Ka': tmat_ka, 'T_mat_W': tmat_w, 'Mie_Ku': mie_ku, 'Mie_Ka': mie_ka,
          'Mie_W': mie_w}, index=ds)
     path_db = f'{path_data}/db'
-    str_db = f"sqlite:///{path_db}/backscatter.sqlite"
+    str_db = f"sqlite:///{path_db}/backscatter{_lower}_{_upper}.sqlite"
     df_scatter.to_sql(f'{instrument}', con=str_db, if_exists='replace')
     return df_scatter
 
 
-def ref_calc(nd, mie=False):
+def ref_calc(nd, _lower, _upper, mie=False):
     ds = np.fromiter(nd.attrs['dsizes'].keys(), dtype=float) / 1e3
     try:
         path_db = f'{path_data}/db'
         make_dir(path_db)
-        str_db = f"sqlite:///{path_db}/backscatter.sqlite"
+        str_db = f"sqlite:///{path_db}/backscatter{_lower}_{_upper}.sqlite"
         backscatter = pd.read_sql(f"{nd.attrs['instrument']}", con=str_db)
     except OperationalError:
-        backscatter = bcksct(ds, nd.attrs['instrument'])
+        backscatter = bcksct(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
     dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
@@ -298,16 +303,6 @@ def ref_calc(nd, mie=False):
         instr = ['z_Ku', 'z_Ka', 'z_W']
         df_z = pd.concat([z_ku, z_ka, z_w], axis=0, keys=instr, levels=[instr])
         return df_z
-
-
-def get_attrs_merged(dt_attrs, _upper, _lower):
-    d_2ds10 = np.fromiter(dt_attrs['2DS10']['dsizes'].keys(), dtype=float)
-    d_hvps = np.fromiter(dt_attrs['HVPS']['dsizes'].keys(), dtype=float)
-    idx_2ds10 = np.abs(d_2ds10 - _upper).argmin() + 1
-    idx_hvps = np.abs(d_hvps - _upper).argmin()
-    dt_2ds = dict(itertools.islice(dt_attrs['2DS10']['dsizes'].items(), idx_2ds10))
-    dt_hvps = dict(itertools.islice(dt_attrs['HVPS']['dsizes'].items(), idx_hvps, len(d_hvps)))
-    return {**dt_2ds, **dt_hvps}
 
 
 def compute_hr(t, td):
@@ -354,9 +349,9 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 
 def main():
-    aircraft = 'Lear'
-    _upper = 1200
-    _lower = 800
+    aircraft = 'P3B'
+    _upper = 800
+    _lower = 400
     ls_df = get_data(aircraft, temp=2)
     ls_df = filt_by_instrument(ls_df)
     ls_df = filt_by_cols(ls_df)
@@ -371,16 +366,16 @@ def main():
     df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
     df_concat.attrs = dt_attrs
 
-    rdm_idx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+    # rdm_idx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
     # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
-    # rdm_idx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
+    rdm_idx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
     # rdm_idx = df_concat.index
     indexx = rdm_idx
 
-    attrs_merged = get_attrs_merged(df_concat.attrs, _upper, _lower)
     ls = []
     ls_z = []
     params = pd.DataFrame(index=indexx, columns=['lwc', 'dm', 'nw', 'z', 'r'])
+    params2 = pd.DataFrame(index=indexx, columns=['lwc', 'dm', 'nw', 'z', 'r'])
     for i in indexx:
         df = df_concat.loc[i]
         res1 = df.unstack().T
@@ -399,15 +394,27 @@ def main():
             df2 = res1['HVPS'].dropna(how='any')
         df1.attrs = df_concat.attrs
         df2.attrs = df_concat.attrs
-        a = linear_wgt(df1=df1, df2=df2, ovr_upp=_upper, ovr_lower=_lower, method='snal')
-        a.attrs['dsizes'] = attrs_merged
-        a.attrs['instrument'] = 'Composite_PSD'
-        params.loc[i] = pds_parameters(a)
-        ls_z.append(ref_calc(a))
-        ls.append(a)
 
+        comp_pds = linear_wgt(df1=df1, df2=df2, ovr_upp=_upper, ovr_lower=_lower, method='snal')
+        comp_pds.attrs['instrument'] = 'Composite_PSD'
+        params.loc[i] = pds_parameters(comp_pds)
+        ls_z.append(ref_calc(comp_pds, _lower=_lower, _upper=_upper))
+        ls.append(comp_pds)
+    attrs_merged = comp_pds.attrs['dsizes']
     df_reflectivity = pd.concat(ls_z, axis=1).T.set_index(indexx)
     df_merged = pd.concat(ls, axis=1).T.set_index(indexx)
+
+    fig, ax = plt.subplots(figsize=(12, 5))
+    ax.plot(params.index, params['lwc'], label='800-1200')
+    ax.plot(params2.index, params2['lwc'], label='400-1200')
+    ax.legend()
+    # x = np.linspace(*ax.get_xlim())
+    # ax.plot(x, x)
+    # ax.set_yscale('log')
+    # ax.set_xscale('log')
+    plt.show()
+    print(1)
+
     df_add = get_add_data(aircraft, indexx=indexx)
 
     df_merged.attrs['dsizes'] = attrs_merged
