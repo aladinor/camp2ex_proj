@@ -96,15 +96,15 @@ def ict2pkl(files, path_save):
         df_all.attrs = attrs
         df_all = df_all.sort_index()
 
-        # # pickle
-        # path_pk = f'{path_data}/pkl'
-        # make_dir(path_pk)
-        # df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
-        #
-        # # parquet
-        # path_par = f'{path_data}/parquet'
-        # make_dir(path_par)
-        # df_all.to_parquet(f'{path_par}/{_type}_{_aircraft}.parquet', index=True)
+        # pickle
+        path_pk = f'{path_data}/pkl'
+        make_dir(path_pk)
+        df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
+
+        # parquet
+        path_par = f'{path_data}/parquet'
+        make_dir(path_par)
+        df_all.to_parquet(f'{path_par}/{_type}_{_aircraft}.parquet', index=True)
 
         # zarr
         nsd = df_all.filter(like='nsd').columns.to_list()
@@ -113,13 +113,31 @@ def ict2pkl(files, path_save):
         data_dict = {'pds': (["time", "diameter"], df_all[nsd].to_numpy())}
         other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
         local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
-        data = data_dict | other_dict | local_t
         attrs = df_all.attrs
-        del attrs['intervals']
+
+        if (df_all.attrs['instrument'] == 'p3b') & (df_all.attrs['aircraft'] == 'merge'):
+            data = other_dict | local_t
+            coords = dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])))
+            for key, value in dict(attrs).items():
+                if value is None:
+                    del attrs[key]
+        elif (df_all.attrs['instrument'] == 'Page0') & (df_all.attrs['aircraft'] == 'Learjet'):
+            data = other_dict | local_t
+            coords = dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])))
+            for key, value in dict(attrs).items():
+                if value is None:
+                    del attrs[key]
+        else:
+            data = data_dict | other_dict | local_t
+            coords = dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])),
+                          diameter=(["diameter"], df_all.attrs['bin_cent']))
+            del attrs['intervals']
+
+        print(f"{df_all.attrs['instrument']}_{df_all.attrs['aircraft']}.zarr")
+
         xr_data = xr.Dataset(
             data_vars=data,
-            coords=dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])),
-                        diameter=(["diameter"], df_all.attrs['bin_cent'])),
+            coords=coords,
             attrs=attrs
         )
         path_zarr = f'{path_data}/zarr'
