@@ -7,44 +7,20 @@ import numpy as np
 import pandas as pd
 import dask.dataframe as dd
 from sqlalchemy.exc import OperationalError
-# import xarray as xr
-import itertools
+import xarray as xr
+import multiprocessing
+from functools import partial
 from pytmatrix import tmatrix_aux, refractive, tmatrix, radar
 from pymiecoated import Mie
 from scipy.constants import c
 from dask import delayed, compute
-import matplotlib.pyplot as plt
-from matplotlib.colors import LinearSegmentedColormap
 from re import split
-import matplotlib.dates as mdates
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
-
-cdict = {'red': ((0., 1, 1),
-                 (0.05, 1, 1),
-                 (0.11, 0, 0),
-                 (0.66, 1, 1),
-                 (0.89, 1, 1),
-                 (1, 0.5, 0.5)),
-         'green': ((0., 1, 1),
-                   (0.05, 1, 1),
-                   (0.11, 0, 0),
-                   (0.375, 1, 1),
-                   (0.64, 1, 1),
-                   (0.91, 0, 0),
-                   (1, 0, 0)),
-         'blue': ((0., 1, 1),
-                  (0.05, 1, 1),
-                  (0.11, 1, 1),
-                  (0.34, 1, 1),
-                  (0.65, 0, 0),
-                  (1, 0, 0))}
-
-my_cmap = LinearSegmentedColormap('my_colormap', cdict, 256)
 
 
 def get_data(instrument='Lear', temp=2):
@@ -328,7 +304,7 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         df_add['RH'] = df_add['RH'].where(df_add['RH'] <= 100, 100)
         df_add.index = df_add['time']
         df_add.drop('time', axis=1, inplace=True)
-        cols = ['temp', 'dew_point', 'altitude(ft)', 'Nev_lwc', 'vertical_vel', 'RH']
+        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
         df_add = df_add[(df_add.index >= indexx.min().strftime('%Y-%m-%d %X')) &
@@ -342,41 +318,17 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         df_add['time'] = df_add['time'].apply(pd.Timestamp).apply(lambda x: x.tz_localize('UTC'))
         df_add.index = df_add['time']
         df_add.drop('time', axis=1, inplace=True)
-        cols = ['temp', 'dew_point', 'altitude(m)', 'Lawson_lwc', 'vertical_vel', 'RH']
+        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
         return df_add
 
 
-def main():
-    aircraft = 'P3B'
-    _upper = 800
-    _lower = 400
-    ls_df = get_data(aircraft, temp=2)
-    ls_df = filt_by_instrument(ls_df)
-    ls_df = filt_by_cols(ls_df)
-    ls_df = compute(*ls_df)
-    intervals = get_intervals(ls_df)
-
-    for i, inter in enumerate(intervals):
-        ls_df[i].attrs['intervals'] = inter
-    instr = [i.attrs['instrument'] for i in ls_df]
-    attrs = [i.attrs for i in ls_df]
-    dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
-    df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
-    df_concat.attrs = dt_attrs
-
-    # rdm_idx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
-    # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
-    rdm_idx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-    # rdm_idx = df_concat.index
-    indexx = rdm_idx
-
+def combined_pds(df_concat, _lower, _upper):
     ls = []
     ls_z = []
-    params = pd.DataFrame(index=indexx, columns=['lwc', 'dm', 'nw', 'z', 'r'])
-    params2 = pd.DataFrame(index=indexx, columns=['lwc', 'dm', 'nw', 'z', 'r'])
-    for i in indexx:
+    params = pd.DataFrame(index=df_concat.index, columns=['lwc', 'dm', 'nw', 'z', 'r'])
+    for i in df_concat.index:
         df = df_concat.loc[i]
         res1 = df.unstack().T
         if res1['2DS10'].dropna(how='any').empty:
@@ -401,127 +353,90 @@ def main():
         ls_z.append(ref_calc(comp_pds, _lower=_lower, _upper=_upper))
         ls.append(comp_pds)
     attrs_merged = comp_pds.attrs['dsizes']
-    df_reflectivity = pd.concat(ls_z, axis=1).T.set_index(indexx)
-    df_merged = pd.concat(ls, axis=1).T.set_index(indexx)
+    df_reflectivity = pd.concat(ls_z, axis=1).T.set_index(df_concat.index)
+    df_merged = pd.concat(ls, axis=1).T.set_index(df_concat.index)
+    return df_merged, df_reflectivity, attrs_merged, params
 
-    fig, ax = plt.subplots(figsize=(12, 5))
-    ax.plot(params.index, params['lwc'], label='800-1200')
-    ax.plot(params2.index, params2['lwc'], label='400-1200')
-    ax.legend()
-    # x = np.linspace(*ax.get_xlim())
-    # ax.plot(x, x)
-    # ax.set_yscale('log')
-    # ax.set_xscale('log')
-    plt.show()
-    print(1)
 
+def main():
+    aircraft = 'Lear'
+    _upper = 800
+    _lower = 400
+    ls_df = get_data(aircraft, temp=2)
+    ls_df = filt_by_instrument(ls_df)
+    ls_df = filt_by_cols(ls_df)
+    ls_df = compute(*ls_df)
+    intervals = get_intervals(ls_df)
+
+    for i, inter in enumerate(intervals):
+        ls_df[i].attrs['intervals'] = inter
+    instr = [i.attrs['instrument'] for i in ls_df]
+    attrs = [i.attrs for i in ls_df]
+    dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
+    df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
+    df_concat.attrs = dt_attrs
+
+    # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+    # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
+    # rdm_idx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
+    indexx = df_concat.index
+    df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
+    num_processes = multiprocessing.cpu_count()
+    chunks = np.array_split(df_concat, num_processes)
+
+    # def combined_pds(df_concat, indexx, _lower, _upper):
+    with multiprocessing.Pool(processes=num_processes) as pool:
+        df_merged, df_reflectivity, attrs_merged, params = zip(*pool.map(partial(combined_pds, _lower=_lower,
+                                                                                 _upper=_upper), chunks))
+    df_merged = pd.concat(df_merged).sort_index()
+    df_reflectivity = pd.concat(df_reflectivity).sort_index()
+    params = pd.concat(params).sort_index()
+    attrs_merged = attrs_merged[0]
     df_add = get_add_data(aircraft, indexx=indexx)
-
     df_merged.attrs['dsizes'] = attrs_merged
-    df_day = df_merged.groupby(df_merged.index.floor('d'))
-    keys = list(df_day.groups.keys())
-    del df_day
-
-    # for key in keys:
-    #     airc = ls_df[0].attrs['aircraft']
-    #     df = df_merged.groupby(df_merged.index.floor('d')).get_group(key)
-    #     df = df[df > 0]
-    #     fig, ax = plt.subplots(figsize=(14, 6))
-    #     cbar = ax.pcolormesh(df.index, df.columns * 1e-3, np.log10(df.T * 1e6), vmin=0, vmax=10, cmap='jet')
-    #     plt.colorbar(cbar, ax=ax, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-    #     ax.set_ylabel(r'$Diameter \  (mm)$', fontsize='x-large')
-    #     ax.set_xlabel('$Time \  (UTC)$', fontsize='x-large')
-    #     ax.set_title('$N(D), \log_{10} (\# \ m^{-3} mm^{-1}) $', position=(0.8, 0.1), fontsize='x-large')
-    #     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-    #     ax.set_yscale('log')
-    #     title = f"{key: %Y-%m-%d} UTC - {aircraft}"
-    #     fig.suptitle(title, fontsize=14, fontweight='bold', y=0.99)
-    #     plt.tight_layout()
-    #     # path_save = f'{path_data}/results/bimodality/flight/{aircraft}'
-    #     # make_dir(path_save)
-    #     # fig.savefig(f"{path_save}/{aircraft}_{key:%Y%m%d}.jpg")
-    #     plt.show()
-    #     print(1)
-
-    for key in keys:
-        airc = ls_df[0].attrs['aircraft']
-        df = df_merged.groupby(df_merged.index.floor('d')).get_group(key)
-        df_z = df_concat.groupby(df_concat.index.floor('d')).get_group(key)
-        # df_z = df_z.loc[(df_z.index > '2019-09-07 02:33:00') & (df_z.index < '2019-09-07 02:33:55')]
-        df_z = df_z.loc[(df_z.index > indexx.min()) & (df_z.index < indexx.max())]
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(12, 10))
-        cbar = ax1.pcolormesh(df.index, df.columns * 1e-3, np.log10(df.T * 1e6), vmin=0, vmax=10, cmap=my_cmap)
-        cbar2 = ax2.pcolormesh(df_z['2DS10'].index, df_z['2DS10'].columns * 1e-3, np.log10(df_z['2DS10'].T * 1e6),
-                               vmin=0,
-                               vmax=10, cmap=my_cmap)
-        cbar3 = ax3.pcolormesh(df_z['HVPS'].index, df_z['HVPS'].columns * 1e-3, np.log10(df_z['HVPS'].T * 1e6), vmin=0,
-                               vmax=10, cmap=my_cmap)
-
-        plt.colorbar(cbar, ax=ax1, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        plt.colorbar(cbar2, ax=ax2, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        plt.colorbar(cbar3, ax=ax3, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        ax1.set_ylabel(r'$Diameter \  (mm)$', fontsize='x-large')
-        ax1.set_xlabel('$Time \  (UTC)$', fontsize='x-large')
-        ax1.set_title('$N(D), \log_{10} (\# \ m^{-3} mm^{-1}) $', position=(0.8, 0.1), fontsize='x-large')
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-        ax1.set_yscale('log')
-        ax2.set_yscale('log')
-        ax3.set_yscale('log')
-        ax2.set_title('2DS10')
-        ax3.set_title('HVPS')
-        ax1.set_xlim(df_merged.index.min(), df_merged.index.max())
-        ax2.set_xlim(df_merged.index.min(), df_merged.index.max())
-        ax3.set_xlim(df_merged.index.min(), df_merged.index.max())
-        ax1.set_ylim(0.01, 40)
-        ax2.set_ylim(0.01, 40)
-        ax3.set_ylim(0.01, 40)
-
-        title = f"{key: %Y-%m-%d} UTC - {aircraft}"
-        fig.suptitle(title, fontsize=14, fontweight='bold', y=0.99)
-        plt.tight_layout()
-        # path_save = f'{path_data}/results/bimodality/flight/{aircraft}'
-        # make_dir(path_save)
-        # fig.savefig(f"{path_save}/{aircraft}_{key:%Y%m%d}.jpg")
-        plt.show()
-        print(1)
-
-    for key in keys:
-        airc = ls_df[0].attrs['aircraft']
-        df = df_merged.groupby(df_merged.index.floor('d')).get_group(key)
-        df_z = df_reflectivity.groupby(df_merged.index.floor('d')).get_group(key)
-        df = df[df > 0]
-        fig, (ax1, ax2, ax3, ax4) = plt.subplots(4, 1, figsize=(12, 10))
-        cbar = ax1.pcolormesh(df.index, df.columns * 1e-3, np.log10(df.T * 1e6), vmin=0, vmax=10, cmap=my_cmap)
-        cbar2 = ax2.pcolormesh(df_z['z_Ku'].index, df_z['z_Ku'].columns, 10 * np.log10(df_z['z_Ku'].T), vmin=-10,
-                               vmax=50, cmap='jet')
-        cbar3 = ax3.pcolormesh(df_z['z_Ka'].index, df_z['z_Ka'].columns, 10 * np.log10(df_z['z_Ka'].T), vmin=-10,
-                               vmax=50, cmap='jet')
-        cbar4 = ax4.pcolormesh(df_z['z_W'].index, df_z['z_W'].columns, 10 * np.log10(df_z['z_W'].T), vmin=-10,
-                               vmax=50, cmap='jet')
-
-        plt.colorbar(cbar, ax=ax1, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        plt.colorbar(cbar2, ax=ax2, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        plt.colorbar(cbar3, ax=ax3, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        plt.colorbar(cbar4, ax=ax4, pad=0.01, aspect=20)  # .set_ticks(np.arange(0,,1))
-        ax1.set_ylabel(r'$Diameter \  (mm)$', fontsize='x-large')
-        ax1.set_xlabel('$Time \  (UTC)$', fontsize='x-large')
-        ax1.set_title('$N(D), \log_{10} (\# \ m^{-3} mm^{-1}) $', position=(0.8, 0.1), fontsize='x-large')
-        ax1.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M:%S'))
-        ax1.set_yscale('log')
-        ax2.set_yscale('log')
-        ax3.set_yscale('log')
-        ax4.set_yscale('log')
-        ax2.set_title('Ku-band radar reflectivity')
-        ax3.set_title('Ka-band radar reflectivity')
-        ax4.set_title('W-band radar reflectivity')
-        title = f"{key: %Y-%m-%d} UTC - {aircraft}"
-        fig.suptitle(title, fontsize=14, fontweight='bold', y=0.99)
-        plt.tight_layout()
-        # path_save = f'{path_data}/results/bimodality/flight/{aircraft}'
-        # make_dir(path_save)
-        # fig.savefig(f"{path_save}/{aircraft}_{key:%Y%m%d}.jpg")
-        plt.show()
-        print(1)
+    dd = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float) / 1e3
+    df_merged = df_merged.join(df_add)
+    xr_merg = xr.Dataset(
+        data_vars=dict(
+            merge_psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy() * 1e6),
+            refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
+            refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
+            refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
+            lwc=(["time"], params['lwc'].to_numpy()),
+            nw=(["time"], params['nw'].to_numpy()),
+            dm=(["time"], params['dm'].to_numpy()),
+            z=(["time"], params['z'].to_numpy()),
+            r=(["time"], params['r'].to_numpy()),
+            temp=(["time"], df_merged['temp'].to_numpy()),
+            dew_point=(["time"], df_merged['dew_point'].to_numpy()),
+            altitude=(["time"], df_merged['altitude'].to_numpy()),
+            lwc_plane=(["time"], df_merged['lwc'].to_numpy()),
+            vert_vel=(["time"], df_merged['vertical_vel'].to_numpy()),
+            RH=(["time"], df_merged['RH'].to_numpy()),
+            dd=(["diameter"], dd)
+        ),
+        coords=dict(
+            time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
+            diameter=(["diameter"], df_merged.columns[:-6] * 1e-3)),
+        attrs={'combined_pds': 'units: # m-3 mm-1',
+               'diameter': 'units # mm',
+               'time': 'UTC',
+               'reflectivity_Ku': 'units mm6 mm-3',
+               'reflectivity_Ka': 'units mm6 mm-3',
+               'reflectivity_W': 'units mm6 mm-3',
+               'LWC': 'units gm-3',
+               'temp': 'units Celcius',
+               'dew_point': 'units Celcius',
+               'altitude': 'units Lear (ft), P3B (m)',
+               'lwc_plane': 'units g m-3, method Lear-NevLWC, P3B-LAWSON',
+               'vert_vel': 'units ms-1',
+               'RH': 'method Lear-Computed, P3B-Measured',
+               'dd': 'bin lenght in mm'
+               },
+    )
+    store = f"{path_data}/zarr/combined_psd_{aircraft}_{_lower}_{_upper}.zarr"
+    # xr_merg.to_zarr(store=store, consolidated=True)
+    print(1)
 
 
 if __name__ == '__main__':
