@@ -149,9 +149,9 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
         nd_overlap = nd_overlap.reindex(df1[cond1].index.mid)
         nd_overlap.index = df1[cond1].index
         res = pd.concat([df1[df1.index.mid <= ovr_lower], nd_overlap['nd_res'], df2[df2.index.mid >= ovr_upp]])
-        dd = {i.mid: i.length for i in res.index}
+        d_d = {i.mid: i.length for i in res.index}
         res.index = res.index.mid
-        res.attrs['dsizes'] = dd
+        res.attrs['dsizes'] = d_d
         return res
 
     elif 'snal':
@@ -170,9 +170,9 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
         res = res.reindex(df1[cond1].index.mid)
         res.index = df1[cond1].index
         res = pd.concat([df1[df1.index.mid <= ovr_lower], res, df2[df2.index.mid >= ovr_upp]])
-        dd = {i.mid: i.length for i in res.index}
+        d_d = {i.mid: i.length for i in res.index}
         res.index = res.index.mid
-        res.attrs['dsizes'] = dd
+        res.attrs['dsizes'] = d_d
         return res
 
 
@@ -188,12 +188,12 @@ def pds_parameters(nd):
     """
     try:
         d = np.fromiter(nd.index, dtype=float) / 1e3  # diameter in millimeters
-        dd = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)  # d_size in um
-        lwc = (np.pi / (6 * 1000)) * np.sum((nd * 1e6) * d ** 3 * (dd * 1e-3))  # g / m3
-        dm = np.sum(nd * d ** 4 * dd) / np.sum(nd * d ** 3 * dd)  # mm
+        d_d = np.fromiter(nd.attrs['dsizes'].values(), dtype=float)  # d_size in um
+        lwc = (np.pi / (6 * 1000)) * np.sum((nd * 1e6) * d ** 3 * (d_d * 1e-3))  # g / m3
+        dm = np.sum(nd * d ** 4 * d_d) / np.sum(nd * d ** 3 * d_d)  # mm
         nw = 1e3 * (4 ** 4 / np.pi) * (lwc / dm ** 4)
-        z = np.sum(nd * d ** 6 * dd)
-        r = np.pi * 6e-4 * np.sum(nd * d ** 3 * vel(d) * dd)
+        z = np.sum(nd * d ** 6 * d_d)
+        r = np.pi * 6e-4 * np.sum(nd * d ** 3 * vel(d) * d_d)
         return [lwc, dm, nw, z, r]
     except ZeroDivisionError:
         return [np.nan, np.nan, np.nan, np.nan, np.nan]
@@ -324,6 +324,36 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         return df_add
 
 
+def combined_pds2(ds10, hvps, _lower, _upper, attrs):
+    ls = []
+    ls_z = []
+    if ds10.dropna(how='any').empty:
+        df1 = pd.Series(index=attrs['2DS10']['bin_cent'], dtype='float64', name='2DS10')
+    elif len(ds10.dropna(how='any')) < len(attrs['2DS10']['bin_cent']):
+        df1 = pd.Series(index=attrs['2DS10']['bin_cent'], dtype='float64', name='2DS10')
+    else:
+        df1 = ds10.dropna(how='any')
+
+    if hvps.dropna(how='any').empty:
+        df2 = pd.Series(index=attrs['HVPS']['bin_cent'], dtype='float64', name='HVPS')
+    elif len(hvps.dropna(how='any')) < len(attrs['HVPS']['bin_cent']):
+        df2 = pd.Series(index=attrs['HVPS']['bin_cent'], dtype='float64', name='HVPS')
+    else:
+        df2 = hvps.dropna(how='any')
+    df1.name = '2DS10'
+    df2.name = 'HVPS'
+    df1.attrs = attrs
+    df2.attrs = attrs
+
+    comp_pds = linear_wgt(df1=df1, df2=df2, ovr_upp=_upper, ovr_lower=_lower, method='snal')
+    comp_pds.attrs['instrument'] = 'Composite_PSD'
+    params = pd.Series(data=pds_parameters(comp_pds), index=['lwc', 'dm', 'nw', 'z', 'r'])
+    ref = ref_calc(comp_pds, _lower=_lower, _upper=_upper)
+    comp_pds.attrs['instrument'] = 'Composite_PSD'
+    attrs_merged = comp_pds.attrs['dsizes']
+    return comp_pds, ref, attrs_merged, params
+
+
 def combined_pds(df_concat, _lower, _upper):
     ls = []
     ls_z = []
@@ -353,6 +383,7 @@ def combined_pds(df_concat, _lower, _upper):
         ls_z.append(ref_calc(comp_pds, _lower=_lower, _upper=_upper))
         ls.append(comp_pds)
     attrs_merged = comp_pds.attrs['dsizes']
+
     df_reflectivity = pd.concat(ls_z, axis=1).T.set_index(df_concat.index)
     df_merged = pd.concat(ls, axis=1).T.set_index(df_concat.index)
     return df_merged, df_reflectivity, attrs_merged, params
@@ -376,11 +407,21 @@ def main():
     df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
     df_concat.attrs = dt_attrs
 
-    # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+    indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
     # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
     # rdm_idx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-    indexx = df_concat.index
+    # indexx = df_concat.index
+
     df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
+    # a = df_concat.apply(lambda x: combined_pds2(x['2DS10'], x['HVPS'], _lower, _upper, df_concat.attrs), axis=1)
+    import dask.dataframe as dd
+    ## Using dask
+    ddf_concat = dd.from_pandas(df_concat, npartitions=1)
+    comp_pds, ref, attrs_merged, params = zip(*ddf_concat.apply(lambda x: combined_pds2(x['2DS10'], x['HVPS'],
+                                                                                        _lower, _upper,
+                                                                                        df_concat.attrs),
+                                                                axis=1, meta=('Combined_PSD', 'f8')))
+
     num_processes = multiprocessing.cpu_count()
     chunks = np.array_split(df_concat, num_processes)
 
