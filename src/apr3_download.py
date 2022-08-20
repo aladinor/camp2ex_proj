@@ -4,7 +4,8 @@ import sys
 import os
 import urllib.request
 import wget
-import multiprocessing as mpc
+# import multiprocessing as mpc
+from multiprocessing.pool import ThreadPool as Pool
 from re import split, compile
 from bs4 import BeautifulSoup
 
@@ -16,8 +17,6 @@ def download_data(url_path, path):
     if not os.path.exists(path):
         make_dir('/'.join(path.split('/')[:-1]))
         wget.download(url_path, out=path)
-    else:
-        pass
 
 
 def link_finder(url, path, pi, sensor):
@@ -42,7 +41,7 @@ def download_camp2ex(webpage):
     path_save = f'{path_data}/data/{pi}/{sensor}'
     links, ids = link_finder(url=webpage, path=path_save, pi=pi, sensor=sensor)
     # download_data(links[0], ids[0])
-    pool = mpc.Pool()
+    pool = Pool()
     pool.starmap(download_data, zip(links, ids))
     pool.close()
     pool.join()
@@ -53,8 +52,8 @@ def main():
     webpage1 = "https://www-air.larc.nasa.gov/cgi-bin/ArcView/camp2ex?LEARJET=1#LAWSON.PAUL/"
     # webpage2 = "https://www-air.larc.nasa.gov/cgi-bin/ArcView/camp2ex?P3B=1#TANELLI.SIMONE/"
     webpage3 = "https://www-air.larc.nasa.gov/cgi-bin/ArcView/camp2ex?MERGE=1#01_SECOND.P3B_MRG/"
-    # ls_web = [webpage, webpage1]  # , webpage2]
-    ls_web = [webpage3]
+    ls_web = [webpage, webpage1]  # , webpage2]
+    # ls_web = [webpage3]
     for i in ls_web:
         download_camp2ex(i)
 
