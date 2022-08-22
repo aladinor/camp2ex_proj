@@ -60,10 +60,9 @@ class Ict2df(object):
 
     def _read_file(self):
         df = pd.read_csv(self.path_file, skiprows=self.header, header=0, na_values=self.na_vals)
-        df['time'] = df.Time_Start.map(lambda x: self.dt + pd.to_timedelta(x, unit='seconds'))
-        df['time'] = df['time'].map(lambda x: x.to_datetime64())
-        df.index = df['time'].dt.tz_localize('utc')
-        df['local_time'] = df['time'].dt.tz_localize('utc').dt.tz_convert('Asia/Manila')
+        df['time'] = df['Time_Start'].map(lambda x: self.dt + pd.to_timedelta(x, unit='seconds'))
+        df.index = df['time']
+        df['local_time'] = df['time'].dt.tz_convert('Asia/Manila')
         df.drop(columns=['time'], axis=1, inplace=True)
         df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent, 'aircraft': self.aircraft,
                     'instrument': self.instrument, 'intervals': self.intervals, 'psd_units': self.units}
