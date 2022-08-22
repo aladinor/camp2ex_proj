@@ -8,9 +8,6 @@ import pandas as pd
 import dask.dataframe as dd
 from sqlalchemy.exc import OperationalError
 import xarray as xr
-import itertools
-import multiprocessing
-from functools import partial
 from pytmatrix import tmatrix_aux, refractive, tmatrix, radar
 from pymiecoated import Mie
 from scipy.constants import c
@@ -33,7 +30,7 @@ def get_data(instrument='Lear', temp=2):
     """
     if instrument == 'Lear':
         ls_lear = glob.glob(f'{path_data}/pkl/*_Learjet.pkl')
-        ls_lear = [i for i in ls_lear if not i.split('/')[-1].startswith('Page0')]
+        ls_lear = sorted([i for i in ls_lear if not i.split('/')[-1].startswith('Page0')])
         ls_temp = glob.glob(f'{path_data}/pkl/Page0*.pkl')[0]
         ls_lear.append(ls_temp)
         lear_df = [pd.read_pickle(i) for i in ls_lear]
@@ -47,11 +44,10 @@ def get_data(instrument='Lear', temp=2):
         del lear_df
         return lear_dd
     elif instrument == 'P3B':
-        ls_p3 = glob.glob(f'{path_data}/pkl/*_P3B.pkl')
-        p3_merged = glob.glob(f'{path_data}/pkl/p3b_merge.pkl')
-        p3_temp = pd.read_pickle(p3_merged[0])
+        ls_p3 = sorted(glob.glob(f'{path_data}/pkl/*_P3B.pkl'))
         p3_df = [pd.read_pickle(i) for i in ls_p3]
         _attrs = [i.attrs for i in p3_df]
+        p3_temp = pd.read_pickle(glob.glob(f'{path_data}/pkl/p3b_merge.pkl')[0])
         p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True) for i in p3_df]
         temp = 2
         for i, df in enumerate(p3_df):
@@ -316,7 +312,6 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         df_add = pd.read_parquet(str_db, columns=[' Total_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
                                                   ' GPS_Altitude_YANG_MetNav', ' LWC_gm3_LAWSON',
                                                   ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav'])
-        df_add['time'] = df_add['time'].apply(pd.Timestamp).apply(lambda x: x.tz_localize('UTC'))
         cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
@@ -324,22 +319,22 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 
 def main():
-    aircraft = 'Lear'
+    aircraft = 'P3B'
     _upper = 800
     _lower = 400
     ls_df = get_data(aircraft, temp=2)
     ls_df = filt_by_instrument(ls_df)
     ls_df = filt_by_cols(ls_df)
-    ls_df = compute(*ls_df)
+    ls_df = [i.compute() for i in ls_df]
     instr = [i.attrs['instrument'] for i in ls_df]
     attrs = [i.attrs for i in ls_df]
     dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
     df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
     df_concat.attrs = dt_attrs
 
-    indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+    # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
     # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
-    # rdm_idx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
+    indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
     # indexx = df_concat.index
 
     df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
