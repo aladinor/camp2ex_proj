@@ -160,11 +160,14 @@ def ict2pkl(files, path_save):
 def main():
 
     instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
-    aircraft = ['P3B', 'Learjet']
-    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
+    aircraft = ['Learjet', 'P3B']
+    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}' for i in aircraft for j in instruments]
     path_save = f'{path_data}/data/LAWSON.PAUL'
     for file in file_type:
-        files = glob.glob(f'{file}*')
+        files = glob.glob(f'{file}/*.ict')
+        if not files:
+            _unit = file.split(':')[0]
+            files = glob.glob(f"/mnt/{file.split(':')[0].lower()}/{file.split(':')[-1]}/*.ict")
         if files:
             ict2pkl(files, path_save)
 
