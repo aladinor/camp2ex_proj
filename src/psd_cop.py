@@ -109,7 +109,7 @@ def ict2pkl(files, path_save):
         nsd = df_all.filter(like='nsd').columns.to_list()
         other = [i for i in df_all.columns.to_list() if not (i.startswith('nsd') | i.startswith('Time') |
                                                              i.startswith('local'))]
-        data_dict = {'pds': (["time", "diameter"], df_all[nsd].to_numpy())}
+        data_dict = {'psd': (["time", "diameter"], df_all[nsd].to_numpy())}
         other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
         d_d = {'d_d': (["diameter"], df_all.attrs['dsizes'])}
         local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
