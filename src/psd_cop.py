@@ -109,8 +109,9 @@ def ict2pkl(files, path_save):
         nsd = df_all.filter(like='nsd').columns.to_list()
         other = [i for i in df_all.columns.to_list() if not (i.startswith('nsd') | i.startswith('Time') |
                                                              i.startswith('local'))]
-        data_dict = {'pds': (["time", "diameter"], df_all[nsd].to_numpy())}
+        data_dict = {'psd': (["time", "diameter"], df_all[nsd].to_numpy())}
         other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
+        d_d = {'d_d': (["diameter"], df_all.attrs['dsizes'])}
         local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
         attrs = df_all.attrs
 
@@ -127,7 +128,7 @@ def ict2pkl(files, path_save):
                 if value is None:
                     del attrs[key]
         else:
-            data = data_dict | other_dict | local_t
+            data = data_dict | other_dict | local_t | d_d
             coords = dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])),
                           diameter=(["diameter"], df_all.attrs['bin_cent']))
             del attrs['intervals']
@@ -160,11 +161,14 @@ def ict2pkl(files, path_save):
 def main():
 
     instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
-    aircraft = ['P3B', 'Learjet']
-    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}/CAMP2Ex-{j}_{i}_' for i in aircraft for j in instruments]
+    aircraft = ['Learjet', 'P3B']
+    file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}' for i in aircraft for j in instruments]
     path_save = f'{path_data}/data/LAWSON.PAUL'
     for file in file_type:
-        files = glob.glob(f'{file}*')
+        files = glob.glob(f'{file}/*.ict')
+        if not files:
+            _unit = file.split(':')[0]
+            files = glob.glob(f"/mnt/{file.split(':')[0].lower()}/{file.split(':')[-1]}/*.ict")
         if files:
             ict2pkl(files, path_save)
 

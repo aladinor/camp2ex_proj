@@ -52,7 +52,7 @@ def main():
     webpage1 = "https://www-air.larc.nasa.gov/cgi-bin/ArcView/camp2ex?LEARJET=1#LAWSON.PAUL/"
     # webpage2 = "https://www-air.larc.nasa.gov/cgi-bin/ArcView/camp2ex?P3B=1#TANELLI.SIMONE/"
     webpage3 = "https://www-air.larc.nasa.gov/cgi-bin/ArcView/camp2ex?MERGE=1#01_SECOND.P3B_MRG/"
-    ls_web = [webpage, webpage1]  # , webpage2]
+    ls_web = [webpage, webpage1, webpage3]  # , webpage2]
     # ls_web = [webpage3]
     for i in ls_web:
         download_camp2ex(i)
