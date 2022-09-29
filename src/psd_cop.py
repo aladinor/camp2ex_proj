@@ -65,7 +65,7 @@ class Ict2df(object):
                     'instrument': self.instrument, 'intervals': self.intervals, 'psd_units': self.units}
         try:
             _cols = ['cbin', 'nbin', 'mbin', 'abin']
-            names = ['cnt', 'nsd', 'm_bin', 'a_bin']
+            names = ['nsd', 'cnt', 'm_bin', 'a_bin']
             cols = list(chain.from_iterable([df.filter(like=i, axis=1).columns.tolist() for i in _cols]))
             dt_cols = self.change_cols_name(cols, names)
             df = df.rename(columns=dt_cols)
