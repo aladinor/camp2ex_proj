@@ -8,16 +8,13 @@ import numpy as np
 import xarray as xr
 from zarr.errors import ContainsGroupError
 from re import split, findall
+from itertools import chain
+
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
-
-
-def moment_nth(sr_nd, dict_diameters, moment):
-    mn = sr_nd * dict_diameters['delta_diam'] * dict_diameters['diameters'] ** moment
-    return mn.sum()
 
 
 class Ict2df(object):
@@ -67,19 +64,30 @@ class Ict2df(object):
         df.attrs = {'sizes': self.sizes, 'dsizes': self.dt_sizes, 'bin_cent': self.bin_cent, 'aircraft': self.aircraft,
                     'instrument': self.instrument, 'intervals': self.intervals, 'psd_units': self.units}
         try:
-            cols = df.filter(like='cbin', axis=1).columns.tolist()
-            names = [f'nsd {i.left}-{i.right}' for i in self.intervals[:-1]]
-            names.append(f'nsd >{self.intervals[-1].left}')
-            if (self.aircraft == 'P3B') and (self.instrument == 'Hawk2DS50'):
-                names = ['nsd 3025.0-3250.0' if (item == 'nsd 3025.0-3225.0') or
-                                                (item == 'nsd 3025.0-3275.0') else item for item in names]
-                names = ['nsd 3250.0-3525.0' if (item == 'nsd 3225.0-3525.0') or
-                                                (item == 'nsd 3275.0-3525.0') else item for item in names]
-            dt_cols = {j: names[i] for i, j in enumerate(cols)}
+            _cols = ['cbin', 'nbin', 'mbin', 'abin']
+            names = ['cnt', 'nsd', 'm_bin', 'a_bin']
+            cols = list(chain.from_iterable([df.filter(like=i, axis=1).columns.tolist() for i in _cols]))
+            dt_cols = self.change_cols_name(cols, names)
             df = df.rename(columns=dt_cols)
             return df
         except TypeError:
             return df
+
+    def change_cols_name(self, cols, names):
+        _nam = []
+        for name in names:
+            _names = [[f'{name} {i.left}-{i.right}' for i in self.intervals[:-1]],
+                      [f'{name} >{self.intervals[-1].left}']]
+            _names = list(chain.from_iterable(_names))
+            if (self.aircraft == 'P3B') and (self.instrument == 'Hawk2DS50'):
+                _names = [f'{name} 3025.0-3250.0' if (item == f'{name} 3025.0-3225.0') or
+                                                     (item == f'{name} 3025.0-3275.0') else item for item in _names]
+                _names = [f'{name} 3250.0-3525.0' if (item == f'{name} 3225.0-3525.0') or
+                                                     (item == f'{name} 3275.0-3525.0') else item for item in _names]
+            _nam.append(_names)
+        _nam = list(chain.from_iterable(_nam))
+        dt = {j: _nam[i] for i, j in enumerate(cols)}
+        return dt
 
 
 def ict2pkl(files, path_save):
@@ -95,21 +103,24 @@ def ict2pkl(files, path_save):
         df_all.attrs = attrs
         df_all = df_all.sort_index()
 
-        # pickle
-        path_pk = f'{path_data}/pkl'
-        make_dir(path_pk)
-        df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
-
-        # parquet
-        path_par = f'{path_data}/parquet'
-        make_dir(path_par)
-        df_all.to_parquet(f'{path_par}/{_type}_{_aircraft}.parquet', index=True)
-
         # zarr
         nsd = df_all.filter(like='nsd').columns.to_list()
+        cnt = df_all.filter(like='cnt').columns.to_list()
+        mbn = df_all.filter(like='m_bin').columns.to_list()
+        abn = df_all.filter(like='a_bin').columns.to_list()
         other = [i for i in df_all.columns.to_list() if not (i.startswith('nsd') | i.startswith('Time') |
-                                                             i.startswith('local'))]
-        data_dict = {'psd': (["time", "diameter"], df_all[nsd].to_numpy())}
+                                                             i.startswith('local') | i.startswith('cnt') |
+                                                             i.startswith('a_bin') | i.startswith('m_bin'))]
+        psd_dict = {'psd': (["time", "diameter"], df_all[nsd].to_numpy())}
+        cnt_dict = {'cnt_bin': (["time", "diameter"], df_all[cnt].to_numpy())}
+        if mbn:
+            mbn_dict = {'m_bin': (["time", "diameter"], df_all[mbn].to_numpy())}
+        else:
+            mbn_dict = {}
+        if abn:
+            abn_dict = {'a_bin': (["time", "diameter"], df_all[abn].to_numpy())}
+        else:
+            abn_dict = {}
         other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
         d_d = {'d_d': (["diameter"], df_all.attrs['dsizes'])}
         local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
@@ -128,7 +139,7 @@ def ict2pkl(files, path_save):
                 if value is None:
                     del attrs[key]
         else:
-            data = data_dict | other_dict | local_t | d_d
+            data = psd_dict | cnt_dict | mbn_dict | abn_dict | other_dict | local_t | d_d
             coords = dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])),
                           diameter=(["diameter"], df_all.attrs['bin_cent']))
             del attrs['intervals']
@@ -147,12 +158,6 @@ def ict2pkl(files, path_save):
             _ = xr_data.to_zarr(store=store, consolidated=True)
         except ContainsGroupError:
             print(f"{df_all.attrs['instrument']}_{df_all.attrs['aircraft']}.zarr already exist. Delete it first!")
-
-        # # for db
-        # path_db = f'{path_data}/db'
-        # make_dir(path_db)
-        # str_db = f"sqlite:///{path_db}/camp2ex.sqlite"
-        # df_all.to_sql(f'{_type}_{_aircraft}', con=str_db, if_exists='replace')
         del df_all
     except IndexError:
         pass
