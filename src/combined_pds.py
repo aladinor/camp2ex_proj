@@ -500,15 +500,9 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 def main():
     aircraft = 'Lear'
-<<<<<<< HEAD
-    _upper = 800
-    _lower = 400
-=======
     intervals = [20, 56, 350, 800]
     _lower = intervals[0]
     _upper = intervals[-1]
-
->>>>>>> origin
     ls_df = get_data(aircraft, temp=2)
     ls_df = filt_by_instrument(ls_df)
     ls_df = filt_by_cols(ls_df)
