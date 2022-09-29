@@ -30,7 +30,12 @@ def get_data(instrument='Lear', temp=2):
     """
     if instrument == 'Lear':
         ls_lear = glob.glob(f'{path_data}/pkl/*_Learjet.pkl')
-        ls_lear = sorted([i for i in ls_lear if not i.split('/')[-1].startswith('Page0')])
+        if os.name == 'nt':
+            ls_lear = sorted([i for i in ls_lear if not i.split('/')[-1].replace("\\", "/").
+                             split('/')[-1].startswith('Page')])
+        else:
+            ls_lear = sorted([i for i in ls_lear if not i.split('/')[-1].startswith('Page')])
+
         ls_temp = glob.glob(f'{path_data}/pkl/Page0*.pkl')[0]
         ls_lear.append(ls_temp)
         lear_df = [pd.read_pickle(i) for i in ls_lear]
@@ -319,7 +324,7 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 
 def main():
-    aircraft = 'P3B'
+    aircraft = 'Lear'
     _upper = 800
     _lower = 400
     ls_df = get_data(aircraft, temp=2)
@@ -332,9 +337,9 @@ def main():
     df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
     df_concat.attrs = dt_attrs
 
-    # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+    indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
     # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
-    indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
+    # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
     # indexx = df_concat.index
 
     df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
@@ -383,8 +388,8 @@ def main():
                'dd': 'bin lenght in mm'
                },
     )
-    # store = f"{path_data}/zarr/combined_psd_{aircraft}_{_lower}_{_upper}.zarr"
-    # xr_merg.to_zarr(store=store, consolidated=True)
+    store = f"{path_data}/zarr/combined_psd_{aircraft}_{_lower}_{_upper}.zarr"
+    xr_merg.to_zarr(store=store, consolidated=True)
     print(1)
 
 
