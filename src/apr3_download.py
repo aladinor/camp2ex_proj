@@ -42,9 +42,9 @@ def download_camp2ex(webpage):
     links, ids = link_finder(url=webpage, path=path_save, pi=pi, sensor=sensor)
     # download_data(links[0], ids[0])
     pool = Pool()
-    pool.starmap(download_data, zip(links, ids))
-    pool.close()
-    pool.join()
+    pool.starmap_async(download_data, zip(links, ids))
+    # pool.close()
+    # pool.join()
 
 
 def main():
@@ -56,6 +56,7 @@ def main():
     # ls_web = [webpage3]
     for i in ls_web:
         download_camp2ex(i)
+        print('done!')
 
 
 if __name__ == '__main__':
