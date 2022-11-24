@@ -104,7 +104,7 @@ def ict2pkl(files, path_save):
         df_all = df_all.sort_index()
 
         # pickle
-        path_pk = f'{path_data}/pkl'
+        path_pk = f'{path_data}/cloud_probes/pkl'
         make_dir(path_pk)
         df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
 
@@ -156,7 +156,7 @@ def ict2pkl(files, path_save):
             coords=coords,
             attrs=attrs
         )
-        path_zarr = f'{path_data}/zarr'
+        path_zarr = f'{path_data}/cloud_probes/zarr'
         make_dir(path_zarr)
         store = f"{path_zarr}/{df_all.attrs['instrument']}_{df_all.attrs['aircraft']}.zarr"
         try:
