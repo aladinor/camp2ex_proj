@@ -21,22 +21,21 @@ location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 
 
-def get_data(instrument='Lear', temp=2):
+def get_data(aircraft='Lear', sensors=None, temp=2):
     """
-
-    :param instrument: aircraft
+    Functions that retrieves cloud probe data from pkl archives
+    :param sensors: sensor which data will be retrieved
+    :param aircraft: aircraft
     :param temp: temperature for filtering
     :return: list of available dataframe in CAMP2ex
     """
-    if instrument == 'Lear':
-        ls_lear = glob.glob(f'{path_data}/pkl/*_Learjet.pkl')
+    if not sensors:
+        sensors = ['FCDP', '2DS10', 'HVPS']
+    if aircraft == 'Lear':
+        ls_lear = [glob.glob(f'{path_data}/cloud_probes/pkl/{i}*_Learjet.pkl')[0] for i in sensors]
         if os.name == 'nt':
-            ls_lear = sorted([i for i in ls_lear if not i.split('/')[-1].replace("\\", "/").
-                             split('/')[-1].startswith('Page')])
-        else:
-            ls_lear = sorted([i for i in ls_lear if not i.split('/')[-1].startswith('Page')])
-
-        ls_temp = glob.glob(f'{path_data}/pkl/Page0*.pkl')[0]
+            ls_lear = sorted([i for i in ls_lear])
+        ls_temp = glob.glob(f'{path_data}/cloud_probes/pkl/Page0*.pkl')[0]
         ls_lear.append(ls_temp)
         lear_df = [pd.read_pickle(i) for i in ls_lear]
         _attrs = [i.attrs for i in lear_df[:-1]]
@@ -45,14 +44,12 @@ def get_data(instrument='Lear', temp=2):
             lear_df = [i[i['Temp'] > temp] for i in lear_df]
         for i, attrs in enumerate(_attrs):
             lear_df[i].attrs = attrs
-        lear_dd = [dd.from_pandas(i, npartitions=1) for i in lear_df]
-        del lear_df
-        return lear_dd
-    elif instrument == 'P3B':
-        ls_p3 = sorted(glob.glob(f'{path_data}/pkl/*_P3B.pkl'))
+        return lear_df
+    elif aircraft == 'P3B':
+        ls_p3 = sorted([glob.glob(f'{path_data}/cloud_probes/pkl/{i}*_Learjet.pkl')[0] for i in sensors])
         p3_df = [pd.read_pickle(i) for i in ls_p3]
         _attrs = [i.attrs for i in p3_df]
-        p3_temp = pd.read_pickle(glob.glob(f'{path_data}/pkl/p3b_merge.pkl')[0])
+        p3_temp = pd.read_pickle(glob.glob(f'{path_data}/cloud_probes/pkl/p3b_merge.pkl')[0])
         p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True) for i in p3_df]
         temp = 2
         for i, df in enumerate(p3_df):
@@ -61,11 +58,9 @@ def get_data(instrument='Lear', temp=2):
             if temp:
                 df = df[df['Temp'] >= temp]
             p3_df[i] = df
-        p3_dd = [dd.from_pandas(i, npartitions=1) for i in p3_df]
-        del p3_df
-        return p3_dd
+        return p3_df
     else:
-        raise TypeError(f"{instrument} not available. Use Lear or P3B")
+        raise TypeError(f"{aircraft} not available. Use Lear or P3B")
 
 
 def change_cols(df):
@@ -76,24 +71,7 @@ def change_cols(df):
     return df
 
 
-@delayed
-def change_cols(df):
-    bin_cent = df.attrs['bin_cent']
-    cols = df.columns
-    new_cols = {cols[i]: bin_cent[i] for i in range(len(cols))}
-    df = df.rename(columns=new_cols)
-    return df
-
-
-def filt_by_instrument(ls_df, hawk=False):
-    if not hawk:
-        ls_df = [i for i in ls_df if not i.attrs['instrument'].startswith('Hawk')]
-        return ls_df
-    else:
-        return ls_df
-
-
-def filt_by_cols(ls_df):
+def filter_by_cols(ls_df):
     # if cols:
     cols = [[j for j in i.columns if j.startswith('nsd')] for i in ls_df]
     ls_df = [i[cols[j]] for j, i in enumerate(ls_df)]
@@ -159,19 +137,19 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
 
     elif 'snal':
         _sdf = nd_overlap.stack()[(((nd_overlap.stack()['2DS10'] == 0) & (nd_overlap.stack()['2DS10'].notnull())) &
-                                  ((nd_overlap.stack()['HVPS'] == 0) & (nd_overlap.stack()['HVPS'].notnull())))][
+                                   ((nd_overlap.stack()['HVPS'] == 0) & (nd_overlap.stack()['HVPS'].notnull())))][
             '2DS10'].unstack()
         _sdd = nd_overlap.stack()[(((nd_overlap.stack()['2DS10'] != 0) & (nd_overlap.stack()['2DS10'].notnull())) &
-                                  ((nd_overlap.stack()['HVPS'] != 0) & (nd_overlap.stack()['HVPS'].notnull())))]
+                                   ((nd_overlap.stack()['HVPS'] != 0) & (nd_overlap.stack()['HVPS'].notnull())))]
         _sdd['2ds10_wgt'] = _sdd['2DS10'] * (ovr_upp - _sdd.index.get_level_values(1)) / (ovr_upp - ovr_lower)
         _sdd['hvps_wgt'] = _sdd['HVPS'] * (_sdd.index.get_level_values(1) - ovr_lower) / (ovr_upp - ovr_lower)
         _sdd['nd_res'] = _sdd[['2ds10_wgt', 'hvps_wgt']].sum(1)
 
         _sdd = _sdd['nd_res'].unstack()
         _sdc = nd_overlap.stack()[(((nd_overlap.stack()['2DS10'] == 0) | (nd_overlap.stack()['2DS10'].isnull())) &
-                                  (nd_overlap.stack()["HVPS"] != 0))]['HVPS'].unstack()
+                                   (nd_overlap.stack()["HVPS"] != 0))]['HVPS'].unstack()
         _sds = nd_overlap.stack()[(((nd_overlap.stack()['HVPS'] == 0) | (nd_overlap.stack()['HVPS'].isnull())) &
-                                  (nd_overlap.stack()["2DS10"] != 0))]['2DS10'].unstack()
+                                   (nd_overlap.stack()["2DS10"] != 0))]['2DS10'].unstack()
         res = pd.concat([_sdd, _sdc, _sds, _sdf], axis=1).sort_index().dropna(how='all',
                                                                               axis='columns').groupby(level=0,
                                                                                                       axis=1).sum()
@@ -316,14 +294,14 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                                              (nd_overlap.stack()['2DS10_R'].isnull()))]['HVPS'].unstack()
 
         _2ds_hvps_2ds = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_R'] != 0) &
-                                               (nd_overlap.stack()['2DS10_R'].notnull())) &
-                                              ((nd_overlap.stack()['HVPS'] == 0) |
-                                               (nd_overlap.stack()['HVPS'].isnull())))]['2DS10_R'].unstack()
+                                             (nd_overlap.stack()['2DS10_R'].notnull())) &
+                                            ((nd_overlap.stack()['HVPS'] == 0) |
+                                             (nd_overlap.stack()['HVPS'].isnull())))]['2DS10_R'].unstack()
 
         _hvps_2ds_hvps = nd_overlap.stack()[(((nd_overlap.stack()['HVPS'] != 0) &
-                                               (nd_overlap.stack()['HVPS'].notnull())) &
-                                              ((nd_overlap.stack()['2DS10_R'] == 0) |
-                                               (nd_overlap.stack()['2DS10_R'].isnull())))]['HVPS'].unstack()
+                                              (nd_overlap.stack()['HVPS'].notnull())) &
+                                             ((nd_overlap.stack()['2DS10_R'] == 0) |
+                                              (nd_overlap.stack()['2DS10_R'].isnull())))]['HVPS'].unstack()
 
         _sdd = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_R'] != 0) &
                                     (nd_overlap.stack()['2DS10_R'].notnull())) &
@@ -342,7 +320,7 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                         axis=1, levels=[['_2ds_hvps_0', '_hvps_2ds_null', '_2ds_hvps_null', '_2ds_hvps_2ds',
                                          '_hvps_2ds_hvps', '_sdd']],
                         keys=['_2ds_hvps_0', '_hvps_2ds_null', '_2ds_hvps_null', '_2ds_hvps_2ds',
-                                         '_hvps_2ds_hvps', '_sdd']).stack().sum(1).unstack()
+                              '_hvps_2ds_hvps', '_sdd']).stack().sum(1).unstack()
 
         res = res.reindex(columns=df_cent.columns[df_cent.columns.overlaps(_intervals[-1])].mid)
         res.columns = df_cent.columns[df_cent.columns.overlaps(_intervals[-1])]
@@ -351,7 +329,7 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                             _res_left,
                             df_cent.iloc[:, df_cent.columns.overlaps(_intervals[1])],
                             res,
-                            df_right.iloc[:, ~df_right.columns.overlaps(_intervals[-1])]],  axis=1)
+                            df_right.iloc[:, ~df_right.columns.overlaps(_intervals[-1])]], axis=1)
         nd_res = nd_res.iloc[:, ~nd_res.columns.duplicated()]
         d_d = {i.mid: i.length for i in nd_res.columns}
         nd_res.columns = nd_res.columns.mid
@@ -475,10 +453,11 @@ def compute_hr(t, td):
 
 
 def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
-    path_par = f'{path_data}/parquet'
+    path_par = f'{path_data}/cloud_probes/pkl'
     if aircraft == 'Lear':
-        str_db = f'{path_par}/Page0_Learjet.parquet'
-        df_add = pd.read_parquet(str_db, columns=['Temp', 'Dew', 'Palt', 'NevLWC', 'VaV'])
+        str_db = f'{path_par}/Page0_Learjet.pkl'
+        df_add = pd.read_pickle(str_db)
+        df_add = df_add.filter(['Temp', 'Dew', 'Palt', 'NevLWC', 'VaV'])
         df_add['RH'] = compute_hr(t=df_add['Temp'], td=df_add['Dew'])
         df_add['RH'] = df_add['RH'].where(df_add['RH'] <= 100, 100)
         cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
@@ -488,10 +467,11 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
                         (df_add.index <= indexx.max().strftime('%Y-%m-%d %X'))]
         return df_add
     else:
-        str_db = f'{path_par}/p3b_merge.parquet'
-        df_add = pd.read_parquet(str_db, columns=[' Total_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
-                                                  ' GPS_Altitude_YANG_MetNav', ' LWC_gm3_LAWSON',
-                                                  ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav'])
+        str_db = f'{path_par}/p3b_merge.pkl'
+        df_add = pd.read_pickle(str_db)
+        df_add = df_add.filter([' Total_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
+                                ' GPS_Altitude_YANG_MetNav', ' LWC_gm3_LAWSON',
+                                ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav'])
         cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
@@ -499,27 +479,26 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 
 def main():
-    aircraft = 'Lear'
-    intervals = [20, 56, 350, 800]
+    aircraft = 'P3B'
+    intervals = [300, 1000]
     _lower = intervals[0]
     _upper = intervals[-1]
-    ls_df = get_data(aircraft, temp=2)
-    ls_df = filt_by_instrument(ls_df)
-    ls_df = filt_by_cols(ls_df)
-    ls_df = [i.compute() for i in ls_df]
+    ls_df = get_data(aircraft, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
+    ls_df = filter_by_cols(ls_df)
     instr = [i.attrs['instrument'] for i in ls_df]
     attrs = [i.attrs for i in ls_df]
     dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
-    df_concat = pd.concat(compute(*ls_df), axis=1, keys=instr, levels=[instr])
+    df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
     df_concat.attrs = dt_attrs
 
-    indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+    # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
     # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
     # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-    # indexx = df_concat.index
+    indexx = df_concat.index
 
     df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
-    df_merged = linear_wgt2(df_concat, intervals=intervals, method='snal')
+    df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
+                           method='snal')
     attrs_merged = df_merged.attrs
     df_reflectivity = ref_calc(df_merged, _upper=_upper, _lower=_lower)
     params = pds_parameters(df_merged)
@@ -564,7 +543,7 @@ def main():
                'dd': 'bin lenght in mm'
                },
     )
-    store = f"{path_data}/zarr/combined_psd_{aircraft}_{_lower}_{_upper}.zarr"
+    store = f"{path_data}/cloud_probes/zarr/combined_psd_{aircraft}_{_lower}_{_upper}.zarr"
     xr_merg.to_zarr(store=store, consolidated=True)
     print(1)
 
