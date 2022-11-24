@@ -175,14 +175,15 @@ def main():
     file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}' for i in aircraft for j in instruments]
     path_save = f'{path_data}/data/LAWSON.PAUL'
     for file in file_type:
-        files = glob.glob(f'{file}/*.ict')
+        files = [i for i in glob.glob(f'{file}/*') if i.endswith('ICT') or i.endswith('ict')]
         if not files:
             _unit = file.split(':')[0]
             files = glob.glob(f"/mnt/{file.split(':')[0].lower()}/{file.split(':')[-1]}/*.ict")
         if files:
             ict2pkl(files, path_save)
 
-    files = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*.ict')
+    files = [i for i in glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*') if i.endswith('ICT')
+             or i.endswith('ict')]
     path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
     ict2pkl(files, path_save=path_save)
 
