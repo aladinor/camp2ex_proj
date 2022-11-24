@@ -103,6 +103,11 @@ def ict2pkl(files, path_save):
         df_all.attrs = attrs
         df_all = df_all.sort_index()
 
+        # pickle
+        path_pk = f'{path_data}/pkl'
+        make_dir(path_pk)
+        df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
+
         # zarr
         nsd = df_all.filter(like='nsd').columns.to_list()
         cnt = df_all.filter(like='cnt').columns.to_list()
