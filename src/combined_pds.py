@@ -499,75 +499,75 @@ def area_filter(ds):
 
 
 def main():
-    aircraft = 'Lear'
-    intervals = [300, 1000]
-    _lower = intervals[0]
-    _upper = intervals[-1]
-    ls_df = get_data(aircraft, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
-    hvps = area_filter(ls_df[-1])
-    ls_df[-1] = hvps
-    ls_df = filter_by_cols(ls_df)
-    instr = [i.attrs['instrument'] for i in ls_df]
-    attrs = [i.attrs for i in ls_df]
-    dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
-    df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
-    df_concat.attrs = dt_attrs
+    aircraft = ['Lear', 'P3B']
+    for air in aircraft:
+        intervals = [300, 1000]
+        _lower = intervals[0]
+        _upper = intervals[-1]
+        ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
+        hvps = area_filter([i for i in ls_df if i.attrs['instrument'] == 'HVPS'][0])
+        ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
+        ls_df = filter_by_cols(ls_df)
+        instr = [i.attrs['instrument'] for i in ls_df]
+        attrs = [i.attrs for i in ls_df]
+        dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
+        df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
+        df_concat.attrs = dt_attrs
 
-    # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
-    # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
-    # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-    indexx = df_concat.index
+        # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+        # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
+        # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
+        indexx = df_concat.index
 
-    df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
-    df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
-                           method='snal')
-    attrs_merged = df_merged.attrs
-    df_reflectivity = ref_calc(df_merged, _upper=_upper, _lower=_lower)
-    params = pds_parameters(df_merged)
-    df_add = get_add_data(aircraft, indexx=indexx)
-    d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float) / 1e3
-    df_merged = df_merged.join(df_add)
-    xr_merg = xr.Dataset(
-        data_vars=dict(
-            psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy() * 1e6),
-            refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
-            refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
-            refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
-            lwc=(["time", "diameter"], params['lwc'].to_numpy()),
-            nw=(["time"], params['nw'].to_numpy()[:, 0]),
-            dm=(["time"], params['dm'].to_numpy()[:, 0]),
-            z=(["time", "diameter"], params['z'].to_numpy()),
-            # r=(["time"], params['r'].to_numpy()),
-            temp=(["time"], df_merged['temp'].to_numpy()),
-            dew_point=(["time"], df_merged['dew_point'].to_numpy()),
-            altitude=(["time"], df_merged['altitude'].to_numpy()),
-            lwc_plane=(["time"], df_merged['lwc'].to_numpy()),
-            vert_vel=(["time"], df_merged['vertical_vel'].to_numpy()),
-            RH=(["time"], df_merged['RH'].to_numpy()),
-            dd=(["diameter"], d_d)
-        ),
-        coords=dict(
-            time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
-            diameter=(["diameter"], df_merged.columns[:-6] * 1e-3)),
-        attrs={'combined_pds': 'units: # m-3 mm-1',
-               'diameter': 'units # mm',
-               'time': 'UTC',
-               'reflectivity_Ku': 'units mm6 mm-3',
-               'reflectivity_Ka': 'units mm6 mm-3',
-               'reflectivity_W': 'units mm6 mm-3',
-               'LWC': 'units gm-3',
-               'temp': 'units Celcius',
-               'dew_point': 'units Celcius',
-               'altitude': 'units Lear (ft), P3B (m)',
-               'lwc_plane': 'units g m-3, method Lear-NevLWC, P3B-LAWSON',
-               'vert_vel': 'units ms-1',
-               'RH': 'method Lear-Computed, P3B-Measured',
-               'dd': 'bin lenght in mm'
-               },
-    )
-    store = f"{path_data}/cloud_probes/zarr/combined_psd_{aircraft}_{_lower}_{_upper}.zarr"
-    xr_merg.to_zarr(store=store, consolidated=True)
-    print(1)
+        df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
+        df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
+                               method='snal')
+        df_reflectivity = ref_calc(df_merged, _upper=_upper, _lower=_lower)
+        params = pds_parameters(df_merged)
+        df_add = get_add_data(aircraft, indexx=indexx)
+        d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float) / 1e3
+        df_merged = df_merged.join(df_add)
+        xr_merg = xr.Dataset(
+            data_vars=dict(
+                psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy() * 1e6),
+                refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
+                refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
+                refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
+                lwc=(["time", "diameter"], params['lwc'].to_numpy()),
+                nw=(["time"], params['nw'].to_numpy()[:, 0]),
+                dm=(["time"], params['dm'].to_numpy()[:, 0]),
+                z=(["time", "diameter"], params['z'].to_numpy()),
+                # r=(["time"], params['r'].to_numpy()),
+                temp=(["time"], df_merged['temp'].to_numpy()),
+                dew_point=(["time"], df_merged['dew_point'].to_numpy()),
+                altitude=(["time"], df_merged['altitude'].to_numpy()),
+                lwc_plane=(["time"], df_merged['lwc'].to_numpy()),
+                vert_vel=(["time"], df_merged['vertical_vel'].to_numpy()),
+                RH=(["time"], df_merged['RH'].to_numpy()),
+                dd=(["diameter"], d_d)
+            ),
+            coords=dict(
+                time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
+                diameter=(["diameter"], df_merged.columns[:-6] * 1e-3)),
+            attrs={'combined_pds': 'units: # m-3 mm-1',
+                   'diameter': 'units # mm',
+                   'time': 'UTC',
+                   'reflectivity_Ku': 'units mm6 mm-3',
+                   'reflectivity_Ka': 'units mm6 mm-3',
+                   'reflectivity_W': 'units mm6 mm-3',
+                   'LWC': 'units gm-3',
+                   'temp': 'units Celcius',
+                   'dew_point': 'units Celcius',
+                   'altitude': 'units Lear (ft), P3B (m)',
+                   'lwc_plane': 'units g m-3, method Lear-NevLWC, P3B-LAWSON',
+                   'vert_vel': 'units ms-1',
+                   'RH': 'method Lear-Computed, P3B-Measured',
+                   'dd': 'bin lenght in mm'
+                   },
+        )
+        store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}.zarr"
+        xr_merg.to_zarr(store=store, consolidated=True)
+        print(1)
 
 
 if __name__ == '__main__':
