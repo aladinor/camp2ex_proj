@@ -492,9 +492,9 @@ def area_filter(ds):
     df_area = ds.filter(like='a_bin')
     df_cnt = ds.filter(like='cnt')
     df_filter = pd.DataFrame(df_area.values / df_cnt.values, index=ds.index, columns=ds.filter(like='nsd').columns)
-    ds_area = df_filter[(df_filter > _lower) & (df_filter < _upper)].notnull()
+    ds_area = df_filter[(df_filter >= _lower) & (df_filter <= _upper)].notnull()
     cols = ds.filter(like='nsd').columns
-    ds[cols] = ds.filter(like='nsd')[ds_area]
+    ds.loc[:, cols] = ds.filter(like='nsd')[ds_area]
     return ds
 
 
@@ -514,10 +514,10 @@ def main():
         df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
         df_concat.attrs = dt_attrs
 
-        # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+        indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
         # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
         # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-        indexx = df_concat.index
+        # indexx = df_concat.index
 
         df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
         df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
