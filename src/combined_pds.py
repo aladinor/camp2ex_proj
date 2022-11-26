@@ -487,8 +487,6 @@ def area_filter(ds):
     area = area_func(diameter) / 1e5
     _lower = area * ar * 0.5
     _upper = area * ar * 2
-    _ = ((ds.index > '2019-09-07 02:32') & (ds.index < '2019-09-07 02:33'))
-    ds = ds[_]
     df_area = ds.filter(like='a_bin')
     df_cnt = ds.filter(like='cnt')
     df_filter = pd.DataFrame(df_area.values / df_cnt.values, index=ds.index, columns=ds.filter(like='nsd').columns)
@@ -549,7 +547,7 @@ def main():
             coords=dict(
                 time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
                 diameter=(["diameter"], df_merged.columns[:-6])),
-            attrs={'combined_pds': 'units: # m-3 mm-1',
+            attrs={'combined_pds': 'units: # l um-1',
                    'diameter': 'units # mm',
                    'time': 'UTC',
                    'reflectivity_Ku': 'units mm6 mm-3',
@@ -562,7 +560,7 @@ def main():
                    'lwc_plane': 'units g m-3, method Lear-NevLWC, P3B-LAWSON',
                    'vert_vel': 'units ms-1',
                    'RH': 'method Lear-Computed, P3B-Measured',
-                   'dd': 'bin lenght in mm'
+                   'd_d': 'bin lenght in mm'
                    },
         )
         store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}.zarr"
