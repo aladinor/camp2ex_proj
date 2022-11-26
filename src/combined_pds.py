@@ -478,12 +478,34 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         return df_add
 
 
+def area_filter(ds):
+    diameter = ds.attrs['bin_cent'] / 1e3  # mm
+    ar_func = lambda \
+        d: 0.9951 + 0.0251 * d - 0.03644 * d ** 2 + 0.005303 * d ** 3 - 0.0002492 * d ** 4  # diameter in mm
+    ar = ar_func(diameter)  # mm
+    area_func = lambda x: np.pi * (x / 2) ** 2
+    area = area_func(diameter) / 1e5
+    _lower = area * ar * 0.5
+    _upper = area * ar * 2
+    _ = ((ds.index > '2019-09-07 02:32') & (ds.index < '2019-09-07 02:33'))
+    ds = ds[_]
+    df_area = ds.filter(like='a_bin')
+    df_cnt = ds.filter(like='cnt')
+    df_filter = pd.DataFrame(df_area.values / df_cnt.values, index=ds.index, columns=ds.filter(like='nsd').columns)
+    ds_area = df_filter[(df_filter > _lower) & (df_filter < _upper)].notnull()
+    cols = ds.filter(like='nsd').columns
+    ds[cols] = ds.filter(like='nsd')[ds_area]
+    return ds
+
+
 def main():
-    aircraft = 'P3B'
+    aircraft = 'Lear'
     intervals = [300, 1000]
     _lower = intervals[0]
     _upper = intervals[-1]
     ls_df = get_data(aircraft, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
+    hvps = area_filter(ls_df[-1])
+    ls_df[-1] = hvps
     ls_df = filter_by_cols(ls_df)
     instr = [i.attrs['instrument'] for i in ls_df]
     attrs = [i.attrs for i in ls_df]
