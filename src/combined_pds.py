@@ -514,10 +514,10 @@ def main():
         df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
         df_concat.attrs = dt_attrs
 
-        indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
+        # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
         # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
         # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-        # indexx = df_concat.index
+        indexx = df_concat.index
 
         df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
         df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
@@ -544,7 +544,7 @@ def main():
                 lwc_plane=(["time"], df_merged['lwc'].to_numpy()),
                 vert_vel=(["time"], df_merged['vertical_vel'].to_numpy()),
                 RH=(["time"], df_merged['RH'].to_numpy()),
-                dd=(["diameter"], d_d)
+                d_d=(["diameter"], d_d)
             ),
             coords=dict(
                 time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
