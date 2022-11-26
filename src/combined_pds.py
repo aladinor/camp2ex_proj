@@ -525,11 +525,11 @@ def main():
         df_reflectivity = ref_calc(df_merged, _upper=_upper, _lower=_lower)
         params = pds_parameters(df_merged)
         df_add = get_add_data(aircraft, indexx=indexx)
-        d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float) / 1e3
+        d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
         df_merged = df_merged.join(df_add)
         xr_merg = xr.Dataset(
             data_vars=dict(
-                psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy() * 1e6),
+                psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy()),
                 refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
                 refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
                 refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
@@ -548,7 +548,7 @@ def main():
             ),
             coords=dict(
                 time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
-                diameter=(["diameter"], df_merged.columns[:-6] * 1e-3)),
+                diameter=(["diameter"], df_merged.columns[:-6])),
             attrs={'combined_pds': 'units: # m-3 mm-1',
                    'diameter': 'units # mm',
                    'time': 'UTC',
