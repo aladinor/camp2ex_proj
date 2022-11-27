@@ -563,6 +563,7 @@ def main():
                    'd_d': 'bin lenght in mm'
                    },
         )
+        xr_merg = xr_merg.sel(diameter=slice(20, 4000))
         store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}.zarr"
         xr_merg.to_zarr(store=store, consolidated=True)
         print(1)
