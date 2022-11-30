@@ -155,7 +155,7 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
                                                                                                       axis=1).sum()
         res = res[df1.iloc[:, cond1].columns.mid]
         res.columns = df1.iloc[:, cond1].columns
-        res = pd.concat([df1.iloc[:, df1.columns.mid <= ovr_lower], res, df2.iloc[:, df2.columns.mid >= ovr_upp]],
+        res = pd.concat([df1.iloc[:, df1.columns.mid <= ovr_lower], res, df2.iloc[:, df2.columns.mid > ovr_upp]],
                         axis=1)
         d_d = {i.mid: i.length for i in res.columns}
         res.columns = res.columns.mid
@@ -499,7 +499,7 @@ def area_filter(ds):
 def main():
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
-        intervals = [300, 1000]
+        intervals = [300, 955]
         _lower = intervals[0]
         _upper = intervals[-1]
         ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
