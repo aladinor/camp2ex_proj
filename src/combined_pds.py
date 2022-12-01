@@ -3,6 +3,8 @@
 import sys
 import os
 import glob
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import dask.dataframe as dd
@@ -101,7 +103,7 @@ def apply_wgt(df, ovr_upp, ovr_lower):
         return np.nan
 
 
-def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
+def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear'):
     """
 
     :param method: method to apply. linear applies Leroy et al. 2014. swal Applies Snesbitt method
@@ -111,15 +113,17 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
     :param ovr_lower: lower limit for overlapping
     :return: pd series with a composite PSD
     """
+    comb_upper = ovr_upp + 200
+    comb_lower = ovr_lower - 50
     df1.columns = df1.attrs['2DS10']['intervals']
     df2.columns = df2.attrs['HVPS']['intervals']
-    cond1 = (df1.columns.mid >= ovr_lower) & (df1.columns.mid <= ovr_upp)
-    cond2 = (df2.columns.mid >= ovr_lower) & (df2.columns.mid <= ovr_upp)
+    cond1 = (df1.columns.mid >= comb_lower) & (df1.columns.mid <= comb_upper)
+    cond2 = (df2.columns.mid >= comb_lower) & (df2.columns.mid <= comb_upper)
     _nd_uppr = df1.iloc[:, cond1]
     _nd_lower = df2.iloc[:, cond2]
     instr = ['2DS10', 'HVPS']
-    nd_overlap = pd.concat([_nd_uppr.reindex(columns=np.arange(ovr_lower, ovr_upp, 5)),
-                            _nd_lower.reindex(columns=np.arange(ovr_lower, ovr_upp, 5))], axis=1, keys=instr,
+    nd_overlap = pd.concat([_nd_uppr.reindex(columns=np.arange(comb_lower, comb_upper, 5)),
+                            _nd_lower.reindex(columns=np.arange(comb_lower, comb_upper, 5))], axis=1, keys=instr,
                            levels=[instr])
     if method == 'linear':
         nd_overlap['2ds10_wgt'] = nd_overlap['2DS10'] * (ovr_upp - nd_overlap['2DS10'].columns.values) / \
@@ -155,7 +159,7 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear'):
                                                                                                       axis=1).sum()
         res = res[df1.iloc[:, cond1].columns.mid]
         res.columns = df1.iloc[:, cond1].columns
-        res = pd.concat([df1.iloc[:, df1.columns.mid <= ovr_lower], res, df2.iloc[:, df2.columns.mid > ovr_upp]],
+        res = pd.concat([df1.iloc[:, df1.columns.mid <= ovr_lower], res, df2.iloc[:, df2.columns.mid >= ovr_upp]],
                         axis=1)
         d_d = {i.mid: i.length for i in res.columns}
         res.columns = res.columns.mid
@@ -499,7 +503,7 @@ def area_filter(ds):
 def main():
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
-        intervals = [300, 955]
+        intervals = [300, 1000]
         _lower = intervals[0]
         _upper = intervals[-1]
         ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
@@ -512,10 +516,9 @@ def main():
         df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
         df_concat.attrs = dt_attrs
 
-        # indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
-        # rdm_idx = pd.date_range(start='2019-09-09 0:51:57', periods=10, tz='UTC', freq='S')  # for Lear
+        indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
         # indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
-        indexx = df_concat.index
+        # indexx = df_concat.index
 
         df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
         df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
