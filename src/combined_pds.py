@@ -119,6 +119,8 @@ def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear'):
     df2.columns = df2.attrs['HVPS']['intervals']
     cond1 = (df1.columns.mid >= comb_lower) & (df1.columns.mid <= comb_upper)
     cond2 = (df2.columns.mid >= comb_lower) & (df2.columns.mid <= comb_upper)
+    cond1_merg = (df1.columns.mid >= ovr_lower) & (df1.columns.mid <= ovr_upp)
+    cond2_merg = (df2.columns.mid >= ovr_lower) & (df2.columns.mid <= ovr_upp)
     _nd_uppr = df1.iloc[:, cond1]
     _nd_lower = df2.iloc[:, cond2]
     instr = ['2DS10', 'HVPS']
@@ -157,9 +159,9 @@ def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear'):
         res = pd.concat([_sdd, _sdc, _sds, _sdf], axis=1).sort_index().dropna(how='all',
                                                                               axis='columns').groupby(level=0,
                                                                                                       axis=1).sum()
-        res = res[df1.iloc[:, cond1].columns.mid]
-        res.columns = df1.iloc[:, cond1].columns
-        res = pd.concat([df1.iloc[:, df1.columns.mid <= ovr_lower], res, df2.iloc[:, df2.columns.mid >= ovr_upp]],
+        res = res[df1.iloc[:, cond1_merg].columns.mid]
+        res.columns = df1.iloc[:, cond1_merg].columns
+        res = pd.concat([df1.iloc[:, df1.columns.mid < ovr_lower], res, df2.iloc[:, df2.columns.mid > ovr_upp]],
                         axis=1)
         d_d = {i.mid: i.length for i in res.columns}
         res.columns = res.columns.mid
@@ -413,7 +415,7 @@ def bcksct(ds, instrument, _lower, _upper, ar=1, j=0) -> pd.DataFrame:
 def ref_calc(nd, _lower, _upper, mie=False):
     ds = np.fromiter(nd.attrs['dsizes'].keys(), dtype=float) / 1e3
     try:
-        path_db = f'{path_data}/db'
+        path_db = f'{path_data}/cloud_probes/db'
         str_db = f"sqlite:///{path_db}/backscatter_{_lower}_{_upper}.sqlite"
         backscatter = pd.read_sql(f"{nd.attrs['instrument']}", con=str_db)
     except (OperationalError, ValueError):
@@ -506,7 +508,7 @@ def main():
         intervals = [300, 1000]
         _lower = intervals[0]
         _upper = intervals[-1]
-        ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS', ])
+        ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS'])
         hvps = area_filter([i for i in ls_df if i.attrs['instrument'] == 'HVPS'][0])
         ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
         ls_df = filter_by_cols(ls_df)
@@ -529,7 +531,7 @@ def main():
                                method='snal')
         df_reflectivity = ref_calc(df_merged, _upper=_upper, _lower=_lower)
         params = pds_parameters(df_merged)
-        df_add = get_add_data(aircraft, indexx=indexx)
+        df_add = get_add_data(air, indexx=indexx)
         d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
         df_merged = df_merged.join(df_add)
         xr_merg = xr.Dataset(
