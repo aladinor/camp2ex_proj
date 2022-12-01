@@ -405,7 +405,7 @@ def bcksct(ds, instrument, _lower, _upper, ar=1, j=0) -> pd.DataFrame:
     df_scatter = pd.DataFrame(
         {'T_mat_Ku': tmat_ku, 'T_mat_Ka': tmat_ka, 'T_mat_W': tmat_w, 'Mie_Ku': mie_ku, 'Mie_Ka': mie_ka,
          'Mie_W': mie_w}, index=ds)
-    path_db = f'{path_data}/db'
+    path_db = f'{path_data}/cloud_probes/db'
     make_dir(path_db)
     str_db = f"sqlite:///{path_db}/backscatter_{_lower}_{_upper}.sqlite"
     df_scatter.to_sql(f'{instrument}', con=str_db, if_exists='replace')
@@ -502,13 +502,22 @@ def area_filter(ds):
     return ds
 
 
+def fill_2ds(ls_df):
+    df_2ds = [i for i in ls_df if i.attrs['instrument'] == '2DS10'][0]
+    df_h2ds = [i for i in ls_df if i.attrs['instrument'] == 'Hawk2DS10'][0]
+    df_2ds = df_2ds.fillna(df_h2ds)
+    ls_df = [df_2ds if i.attrs['instrument'] == '2DS10' else i for i in ls_df]
+    return ls_df
+
+
 def main():
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [300, 1000]
         _lower = intervals[0]
         _upper = intervals[-1]
-        ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS'])
+        ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS', 'Hawk2DS10'])
+        ls_df = fill_2ds(ls_df)
         hvps = area_filter([i for i in ls_df if i.attrs['instrument'] == 'HVPS'][0])
         ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
         ls_df = filter_by_cols(ls_df)
