@@ -100,8 +100,6 @@ def ict2pkl(files):
         attrs['type'] = _type
         attrs['aircraft'] = _aircraft
         df_all = pd.concat(ls_pd)
-        print(_type, _aircraft)
-
         path_pk = f'{path_data}/cloud_probes/pkl'
         make_dir(path_pk)
         temp = None
@@ -194,9 +192,9 @@ def ict2pkl(files):
 
 
 def main():
-    # files = [i for i in glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*') if i.endswith('ICT')
-    #          or i.endswith('ict')]
-    # ict2pkl(files)
+    files = [i for i in glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*') if i.endswith('ICT')
+             or i.endswith('ict')]
+    ict2pkl(files)
     files = [i for i in glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/Page0/*Page0*')]
     ict2pkl(files)
 
