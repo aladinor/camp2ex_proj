@@ -48,7 +48,7 @@ def get_data(aircraft='Lear', sensors=None, temp=2):
             lear_df[i].attrs = attrs
         return lear_df
     elif aircraft == 'P3B':
-        ls_p3 = sorted([glob.glob(f'{path_data}/cloud_probes/pkl/{i}*_Learjet.pkl')[0] for i in sensors])
+        ls_p3 = sorted([glob.glob(f'{path_data}/cloud_probes/pkl/{i}*_P3B.pkl')[0] for i in sensors])
         p3_df = [pd.read_pickle(i) for i in ls_p3]
         _attrs = [i.attrs for i in p3_df]
         p3_temp = pd.read_pickle(glob.glob(f'{path_data}/cloud_probes/pkl/p3b_merge.pkl')[0])
@@ -420,6 +420,10 @@ def ref_calc(nd, _lower, _upper, mie=False):
         backscatter = pd.read_sql(f"{nd.attrs['instrument']}", con=str_db)
     except (OperationalError, ValueError):
         backscatter = bcksct(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
+
+    if len(ds) != backscatter.shape[0]:
+        backscatter = bcksct(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
+
     dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float) / 1e3
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
@@ -516,7 +520,7 @@ def main():
         intervals = [300, 1000]
         _lower = intervals[0]
         _upper = intervals[-1]
-        ls_df = get_data(air, temp=2, sensors=['FCDP', '2DS10', 'HVPS', 'Hawk2DS10'])
+        ls_df = get_data(air, temp=2, sensors=['2DS10', 'HVPS', 'Hawk2DS10'])
         ls_df = fill_2ds(ls_df)
         hvps = area_filter([i for i in ls_df if i.attrs['instrument'] == 'HVPS'][0])
         ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
@@ -531,7 +535,7 @@ def main():
             if air == "Lear":
                 indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
             else:
-                indexx = pd.date_range(start='2019-09-06 23:58:30', periods=60, tz='UTC', freq='S')  # for P3B
+                indexx = pd.date_range(start='2019-08-27 00:15', periods=120, tz='UTC', freq='S')  # for P3B
         else:
             indexx = df_concat.index
 
