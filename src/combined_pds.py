@@ -37,29 +37,35 @@ def get_data(aircraft='Lear', sensors=None, temp=2):
         ls_lear = [glob.glob(f'{path_data}/cloud_probes/pkl/{i}*_Learjet.pkl')[0] for i in sensors]
         if os.name == 'nt':
             ls_lear = sorted([i for i in ls_lear])
-        ls_temp = glob.glob(f'{path_data}/cloud_probes/pkl/Page0*.pkl')[0]
-        ls_lear.append(ls_temp)
         lear_df = [pd.read_pickle(i) for i in ls_lear]
-        _attrs = [i.attrs for i in lear_df[:-1]]
+        _attrs = [i.attrs for i in lear_df]
         if temp:
-            lear_df = [pd.merge(i, lear_df[-1]['Temp'], right_index=True, left_index=True) for i in lear_df[:-1]]
-            lear_df = [i[i['Temp'] > temp] for i in lear_df]
-        for i, attrs in enumerate(_attrs):
-            lear_df[i].attrs = attrs
+            try:
+                lear_df = [i[i['Temp'] > temp] for i in lear_df]
+            except KeyError:
+                ls_temp = glob.glob(f'{path_data}/cloud_probes/pkl/Page0*.pkl')[0]
+                lear_df = [pd.merge(i, pd.read_pickle(ls_temp)['Temp'], right_index=True, left_index=True)
+                           for i in lear_df]
+                for i, attrs in enumerate(_attrs):
+                    lear_df[i].attrs = attrs
         return lear_df
     elif aircraft == 'P3B':
         ls_p3 = sorted([glob.glob(f'{path_data}/cloud_probes/pkl/{i}*_P3B.pkl')[0] for i in sensors])
         p3_df = [pd.read_pickle(i) for i in ls_p3]
         _attrs = [i.attrs for i in p3_df]
-        p3_temp = pd.read_pickle(glob.glob(f'{path_data}/cloud_probes/pkl/p3b_merge.pkl')[0])
-        p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True) for i in p3_df]
-        temp = 2
-        for i, df in enumerate(p3_df):
-            df.attrs = _attrs[i]
-            df.rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
-            if temp:
-                df = df[df['Temp'] >= temp]
-            p3_df[i] = df
+        if temp:
+            try:
+                p3_df = [i[i['Temp'] > temp] for i in p3_df]
+            except KeyError:
+                p3_temp = pd.read_pickle(glob.glob(f'{path_data}/cloud_probes/pkl/p3b_merge.pkl')[0])
+                p3_df = [pd.merge(i, p3_temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True)
+                         for i in p3_df]
+                temp = 2
+                for i, df in enumerate(p3_df):
+                    df.attrs = _attrs[i]
+                    df.rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
+                    df = df[df['Temp'] >= temp]
+                    p3_df[i] = df
         return p3_df
     else:
         raise TypeError(f"{aircraft} not available. Use Lear or P3B")
