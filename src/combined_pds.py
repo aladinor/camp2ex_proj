@@ -3,17 +3,13 @@
 import sys
 import os
 import glob
-
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import dask.dataframe as dd
 from sqlalchemy.exc import OperationalError
 import xarray as xr
 from pytmatrix import tmatrix_aux, refractive, tmatrix, radar
 from pymiecoated import Mie
 from scipy.constants import c
-from dask import delayed, compute
 from re import split
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
@@ -534,7 +530,9 @@ def main():
         instr = [i.attrs['instrument'] for i in ls_df]
         attrs = [i.attrs for i in ls_df]
         dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
-        df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
+        for idx, att in enumerate(attrs):
+            ls_df[idx].attrs = attrs[0]
+        df_concat = pd.concat(ls_df[:1], axis=1, keys=instr, levels=[instr])
         df_concat.attrs = dt_attrs
 
         if location in ['atmos', 'alfonso']:
