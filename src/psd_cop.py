@@ -152,7 +152,7 @@ def ict2pkl(files):
         other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
         d_d = {'d_d': (["diameter"], df_all.attrs['dsizes'])}
         local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
-        Temp = {'Temp': (["time"], df_all['temp'].to_numpy())}
+        Temp = {'Temp': (["time"], df_all['Temp'].to_numpy())}
         attrs = df_all.attrs
 
         if (df_all.attrs['instrument'] == 'p3b') & (df_all.attrs['aircraft'] == 'merge'):
