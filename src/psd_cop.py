@@ -90,7 +90,7 @@ class Ict2df(object):
         return dt
 
 
-def ict2pkl(files, path_save):
+def ict2pkl(files):
     try:
         _file = files[0]
         _type = _file.split('/')[-1].split('-')[-1].split('_')[0]
@@ -100,12 +100,35 @@ def ict2pkl(files, path_save):
         attrs['type'] = _type
         attrs['aircraft'] = _aircraft
         df_all = pd.concat(ls_pd)
+
+        path_pk = f'{path_data}/cloud_probes/pkl'
+        make_dir(path_pk)
+        temp = None
+
+        if _aircraft == 'P3B':
+            try:
+                temp = pd.read_pickle(f'{path_pk}/p3_merge.pkl')
+            except FileNotFoundError:
+                pass
+
+        elif _aircraft == 'Learjet':
+            try:
+                temp = pd.read_pickle(f'{path_pk}/Page0_Learjet.pkl')
+            except FileNotFoundError:
+                pass
+
+        if temp is not None:
+            if _aircraft == 'Learjet':
+                df_all = pd.merge(df_all, temp['Temp'], right_index=True, left_index=True)
+
+            elif _aircraft == 'P3B':
+                df_all = pd.merge(df_all, temp[' Static_Air_Temp_YANG_MetNav'], left_index=True, right_index=True)
+                df_all.rename(columns={' Static_Air_Temp_YANG_MetNav': 'Temp'}, inplace=True)
+
         df_all.attrs = attrs
         df_all = df_all.sort_index()
 
         # pickle
-        path_pk = f'{path_data}/cloud_probes/pkl'
-        make_dir(path_pk)
         df_all.to_pickle(f'{path_pk}/{_type}_{_aircraft}.pkl')
 
         # zarr
@@ -169,23 +192,25 @@ def ict2pkl(files, path_save):
 
 
 def main():
+    files = [i for i in glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*') if i.endswith('ICT')
+             or i.endswith('ict')]
+    ict2pkl(files)
+    files = [i for i in glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/Page0/*Page0*')]
+    ict2pkl(files)
 
-    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP', 'Page0']
+    instruments = ['FCDP', '2DS10', 'HVPS', 'FFSSP', 'Hawk2DS10', 'Hawk2DS50', 'HawkFCDP']
     aircraft = ['Learjet', 'P3B']
     file_type = [f'{path_data}/data/LAWSON.PAUL/{i.upper()}/{j}' for i in aircraft for j in instruments]
-    path_save = f'{path_data}/data/LAWSON.PAUL'
+
     for file in file_type:
         files = [i for i in glob.glob(f'{file}/*') if i.endswith('ICT') or i.endswith('ict')]
         if not files:
             _unit = file.split(':')[0]
             files = glob.glob(f"/mnt/{file.split(':')[0].lower()}/{file.split(':')[-1]}/*.ict")
         if files:
-            ict2pkl(files, path_save)
+            ict2pkl(files)
 
-    files = [i for i in glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/p3b/*') if i.endswith('ICT')
-             or i.endswith('ict')]
-    path_save = f'{path_data}/data/01_SECOND.P3B_MRG'
-    ict2pkl(files, path_save=path_save)
+
 
 
 if __name__ == '__main__':
