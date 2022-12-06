@@ -532,7 +532,7 @@ def main():
         dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
         for idx, att in enumerate(attrs):
             ls_df[idx].attrs = attrs[0]
-        df_concat = pd.concat(ls_df[:1], axis=1, keys=instr, levels=[instr])
+        df_concat = pd.concat(ls_df, axis=1, keys=instr, levels=[instr])
         df_concat.attrs = dt_attrs
 
         if location in ['atmos', 'alfonso']:

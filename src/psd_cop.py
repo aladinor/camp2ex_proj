@@ -152,6 +152,7 @@ def ict2pkl(files):
         other_dict = {i: (["time"], df_all[i].to_numpy()) for i in other}
         d_d = {'d_d': (["diameter"], df_all.attrs['dsizes'])}
         local_t = {'local_time': (["time"], np.array([i.to_datetime64() for i in df_all["local_time"]]))}
+        Temp = {'Temp': (["time"], df_all['temp'].to_numpy())}
         attrs = df_all.attrs
 
         if (df_all.attrs['instrument'] == 'p3b') & (df_all.attrs['aircraft'] == 'merge'):
@@ -167,7 +168,7 @@ def ict2pkl(files):
                 if value is None:
                     del attrs[key]
         else:
-            data = psd_dict | cnt_dict | mbn_dict | abn_dict | other_dict | local_t | d_d
+            data = psd_dict | cnt_dict | mbn_dict | abn_dict | other_dict | local_t | d_d | Temp
             coords = dict(time=(["time"], np.array([i.to_datetime64() for i in df_all.index])),
                           diameter=(["diameter"], df_all.attrs['bin_cent']))
             del attrs['intervals']
@@ -209,8 +210,6 @@ def main():
             files = glob.glob(f"/mnt/{file.split(':')[0].lower()}/{file.split(':')[-1]}/*.ict")
         if files:
             ict2pkl(files)
-
-
 
 
 if __name__ == '__main__':
