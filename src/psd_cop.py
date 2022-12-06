@@ -106,7 +106,7 @@ def ict2pkl(files):
 
         if _aircraft == 'P3B':
             try:
-                temp = pd.read_pickle(f'{path_pk}/p3_merge.pkl')
+                temp = pd.read_pickle(f'{path_pk}/p3b_merge.pkl')
             except FileNotFoundError:
                 pass
 
