@@ -105,7 +105,7 @@ def apply_wgt(df, ovr_upp, ovr_lower):
         return np.nan
 
 
-def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear'):
+def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear', lower_limit=50, upper_limit=4000):
     """
 
     :param method: method to apply. linear applies Leroy et al. 2014. swal Applies Snesbitt method
@@ -165,6 +165,7 @@ def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear'):
         res.columns = df1.iloc[:, cond1_merg].columns
         res = pd.concat([df1.iloc[:, df1.columns.mid < ovr_lower], res, df2.iloc[:, df2.columns.mid > ovr_upp]],
                         axis=1)
+        res = res.iloc[:, (res.columns.mid >= lower_limit) & (res.columns.mid <= upper_limit)]
         d_d = {i.mid: i.length for i in res.columns}
         res.columns = res.columns.mid
         res.attrs['dsizes'] = d_d
@@ -589,7 +590,6 @@ def main():
                    'd_d': 'bin lenght in mm'
                    },
         )
-        xr_merg = xr_merg.sel(diameter=slice(20, 3824.5))
         store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}.zarr"
         xr_merg.to_zarr(store=store, consolidated=True)
         print(1)
