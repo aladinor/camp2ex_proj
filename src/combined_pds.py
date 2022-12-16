@@ -3,6 +3,7 @@
 import sys
 import os
 import glob
+from typing import Callable
 import numpy as np
 import pandas as pd
 from sqlalchemy.exc import OperationalError
@@ -105,9 +106,11 @@ def apply_wgt(df, ovr_upp, ovr_lower):
         return np.nan
 
 
-def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear', lower_limit=50, upper_limit=4000):
+def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear', lower_limit=50, upper_limit=4000):
     """
-
+    Functions that perform linear weight interpolation between to cloud probes
+    :param upper_limit: Upper limit until data is used in um
+    :param lower_limit: Lower limit until data is used in um
     :param method: method to apply. linear applies Leroy et al. 2014. swal Applies Snesbitt method
     :param df1: pandas series with the small diameter sizes (e.g. 2DS10)
     :param df2: pandas series with the small diameter sizes (e.g. HVPS)
@@ -122,7 +125,6 @@ def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear', lower_li
     cond1 = (df1.columns.mid >= comb_lower) & (df1.columns.mid <= comb_upper)
     cond2 = (df2.columns.mid >= comb_lower) & (df2.columns.mid <= comb_upper)
     cond1_merg = (df1.columns.mid >= ovr_lower) & (df1.columns.mid <= ovr_upp)
-    cond2_merg = (df2.columns.mid >= ovr_lower) & (df2.columns.mid <= ovr_upp)
     _nd_uppr = df1.iloc[:, cond1]
     _nd_lower = df2.iloc[:, cond2]
     instr = ['2DS10', 'HVPS']
@@ -131,9 +133,9 @@ def linear_wgt(df1, df2,  ovr_upp=1200, ovr_lower=800, method='linear', lower_li
                            levels=[instr])
     if method == 'linear':
         nd_overlap['2ds10_wgt'] = nd_overlap['2DS10'] * (ovr_upp - nd_overlap['2DS10'].columns.values) / \
-                                  (ovr_upp - ovr_lower)
+                                                        (ovr_upp - ovr_lower)
         nd_overlap['hvps_wgt'] = nd_overlap['HVPS'] * (nd_overlap['HVPS'].index.values - ovr_lower) / \
-                                 (ovr_upp - ovr_lower)
+                                                      (ovr_upp - ovr_lower)
         nd_overlap['nd_res'] = nd_overlap[['2ds10_wgt', 'hvps_wgt']].dropna(how='all').sum(1)
         nd_overlap = nd_overlap.reindex(df1[cond1].index.mid)
         nd_overlap.index = df1[cond1].index
@@ -213,16 +215,16 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
 
     if method == 'linear':
         _fcdp = nd_overlap['FCDP'] * (_intervals[0].right - nd_overlap['FCDP'].columns) / \
-                (_intervals[0].right - _intervals[0].left)
+                                     (_intervals[0].right - _intervals[0].left)
 
         _2ds_l = nd_overlap['2DS10_L'] * (nd_overlap['2DS10_L'].columns - _intervals[0].left) / \
-                 (_intervals[0].right - _intervals[0].left)
+                                         (_intervals[0].right - _intervals[0].left)
 
         _2ds_r = nd_overlap['2DS10_R'] * (_intervals[-1].right - nd_overlap['2DS10_R'].columns) / \
-                 (_intervals[-1].right - _intervals[-1].left)
+                                         (_intervals[-1].right - _intervals[-1].left)
 
         _hvsp = nd_overlap['HVPS'] * (nd_overlap['HVPS'].columns - _intervals[-1].left) / \
-                (_intervals[-1].right - _intervals[-1].left)
+                                     (_intervals[-1].right - _intervals[-1].left)
 
         res = pd.concat([_fcdp, _2ds_l, _2ds_r, _hvsp], axis=1, keys=['fcdp', '2ds_l', '2ds_s', 'hvps'],
                         levels=[['fcdp', '2ds_l', '2ds_s', 'hvps']]).stack().sum(axis=1).unstack()
@@ -275,10 +277,10 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                                           nd_overlap.stack()['2DS10_L'].notnull())))]
 
         _sfc_wt['wt_fcdp'] = _sfc_wt['FCDP'] * (_intervals[0].right - _sfc_wt.index.get_level_values(1)) / \
-                             (_intervals[0].right - _intervals[0].left)
+                                               (_intervals[0].right - _intervals[0].left)
 
         _sfc_wt['wt_2ds'] = _sfc_wt['2DS10_L'] * (_sfc_wt.index.get_level_values(1) - _intervals[0].left) / \
-                            (_intervals[0].right - _intervals[0].left)
+                                                 (_intervals[0].right - _intervals[0].left)
 
         _fcd_2ds = _sfc_wt[['wt_fcdp', 'wt_2ds']].sum(axis=1).unstack()
 
@@ -318,9 +320,9 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                                     (nd_overlap.stack()['HVPS'].notnull())))]
 
         _sdd['2ds10_wgt'] = _sdd['2DS10_R'] * (_intervals[-1].right - _sdd.index.get_level_values(1)) / \
-                            (_intervals[-1].right - _intervals[1].left)
+                                              (_intervals[-1].right - _intervals[1].left)
         _sdd['hvps_wgt'] = _sdd['HVPS'] * (_sdd.index.get_level_values(1) - _intervals[-1].left) / \
-                           (_intervals[-1].right - _intervals[-1].left)
+                                          (_intervals[-1].right - _intervals[-1].left)
         _sdd['nd_res'] = _sdd[['2ds10_wgt', 'hvps_wgt']].sum(1)
 
         _sdd = _sdd['nd_res'].unstack()
@@ -357,14 +359,18 @@ def pds_parameters(nd):
     :param nd: partice size distribution in # L-1 um-1
     :return: list with lwc, dm, nw, z, and r
     """
-    d = np.fromiter(nd.columns, dtype=float) / 1e3  # diameter in millimeters
-    d_d = np.fromiter(nd.attrs['dsizes'].values(), dtype=float) / 1e3  # d_size in um
+    d = pd.DataFrame(data=np.tile(np.fromiter(nd.columns, dtype=float) / 1e3, (nd.shape[0], 1)), index=nd.index,
+                     columns=nd.columns)
+    d_d = pd.DataFrame(data=np.tile(np.fromiter(nd.attrs['dsizes'].values(), dtype=float) / 1e3,
+                                    (nd.shape[0], 1)), index=nd.index, columns=nd.columns)
     lwc = nd.mul(1e6).mul(d ** 3).mul(d_d) * (np.pi / (6 * 1000))  # g / m3
-    dm = nd.mul(d ** 4).mul(d_d).sum(1) / nd.mul(d ** 3).mul(d_d).sum(1)  # mm
+    dm = nd.mul(1e6).mul(d ** 4).mul(d_d).sum(1) / nd.mul(1e6).mul(d ** 3).mul(d_d).sum(1)  # mm
     nw = 1e3 * (4 ** 4 / np.pi) * (lwc.sum(1) / dm ** 4)
-    z = nd.mul(d ** 6).mul(d_d)
-    _ = ['lwc', 'dm', 'nw', 'z']
-    return pd.concat([lwc, dm, nw, z], axis=1, keys=_, levels=[_])
+    z = nd.mul(1e6).mul(d ** 6).mul(d_d)
+    sigmasqr = (d.sub(dm, axis='rows') ** 2 * (nd * 1e6 * d_d ** 3)) / (nd * 1e6 * d ** 3 * d_d)
+    sigmasqr = sigmasqr.sum(1)
+    _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr']
+    return pd.concat([lwc, dm, nw, z, sigmasqr], axis=1, keys=_, levels=[_])
 
 
 def bcksct(ds, instrument, _lower, _upper, ar=1, j=0) -> pd.DataFrame:
@@ -493,10 +499,10 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 def area_filter(ds):
     diameter = ds.attrs['bin_cent'] / 1e3  # mm
-    ar_func = lambda \
-        d: 0.9951 + 0.0251 * d - 0.03644 * d ** 2 + 0.005303 * d ** 3 - 0.0002492 * d ** 4  # diameter in mm
+    ar_func: Callable[[float], float] = lambda d: 0.9951 + 0.0251 * d - 0.03644 * d ** 2 + 0.005303 * \
+                                                  d ** 3 - 0.0002492 * d ** 4  # d in mm
     ar = ar_func(diameter)  # mm
-    area_func = lambda x: np.pi * (x / 2) ** 2
+    area_func: Callable[[float], float] = lambda x: np.pi * (x / 2) ** 2
     area = area_func(diameter) / 1e5
     _lower = area * ar * 0.5
     _upper = area * ar * 2
@@ -562,7 +568,7 @@ def main():
                 nw=(["time"], params['nw'].to_numpy()[:, 0]),
                 dm=(["time"], params['dm'].to_numpy()[:, 0]),
                 z=(["time", "diameter"], params['z'].to_numpy()),
-                # r=(["time"], params['r'].to_numpy()),
+                sigmasqr=(["time"], params['sigmasqr'].to_numpy()[:, 0]),
                 temp=(["time"], df_merged['temp'].to_numpy()),
                 dew_point=(["time"], df_merged['dew_point'].to_numpy()),
                 altitude=(["time"], df_merged['altitude'].to_numpy()),
