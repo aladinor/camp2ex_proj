@@ -9,6 +9,7 @@ import pandas as pd
 from sqlalchemy.exc import OperationalError
 import xarray as xr
 from pytmatrix import tmatrix_aux, refractive, tmatrix, radar
+from pytmatrix.scatter import ext_xsect
 from pymiecoated import Mie
 from scipy.constants import c
 from re import split
@@ -133,9 +134,9 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear', lower_lim
                            levels=[instr])
     if method == 'linear':
         nd_overlap['2ds10_wgt'] = nd_overlap['2DS10'] * (ovr_upp - nd_overlap['2DS10'].columns.values) / \
-                                                        (ovr_upp - ovr_lower)
+                                  (ovr_upp - ovr_lower)
         nd_overlap['hvps_wgt'] = nd_overlap['HVPS'] * (nd_overlap['HVPS'].index.values - ovr_lower) / \
-                                                      (ovr_upp - ovr_lower)
+                                 (ovr_upp - ovr_lower)
         nd_overlap['nd_res'] = nd_overlap[['2ds10_wgt', 'hvps_wgt']].dropna(how='all').sum(1)
         nd_overlap = nd_overlap.reindex(df1[cond1].index.mid)
         nd_overlap.index = df1[cond1].index
@@ -215,16 +216,16 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
 
     if method == 'linear':
         _fcdp = nd_overlap['FCDP'] * (_intervals[0].right - nd_overlap['FCDP'].columns) / \
-                                     (_intervals[0].right - _intervals[0].left)
+                (_intervals[0].right - _intervals[0].left)
 
         _2ds_l = nd_overlap['2DS10_L'] * (nd_overlap['2DS10_L'].columns - _intervals[0].left) / \
-                                         (_intervals[0].right - _intervals[0].left)
+                 (_intervals[0].right - _intervals[0].left)
 
         _2ds_r = nd_overlap['2DS10_R'] * (_intervals[-1].right - nd_overlap['2DS10_R'].columns) / \
-                                         (_intervals[-1].right - _intervals[-1].left)
+                 (_intervals[-1].right - _intervals[-1].left)
 
         _hvsp = nd_overlap['HVPS'] * (nd_overlap['HVPS'].columns - _intervals[-1].left) / \
-                                     (_intervals[-1].right - _intervals[-1].left)
+                (_intervals[-1].right - _intervals[-1].left)
 
         res = pd.concat([_fcdp, _2ds_l, _2ds_r, _hvsp], axis=1, keys=['fcdp', '2ds_l', '2ds_s', 'hvps'],
                         levels=[['fcdp', '2ds_l', '2ds_s', 'hvps']]).stack().sum(axis=1).unstack()
@@ -277,10 +278,10 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                                           nd_overlap.stack()['2DS10_L'].notnull())))]
 
         _sfc_wt['wt_fcdp'] = _sfc_wt['FCDP'] * (_intervals[0].right - _sfc_wt.index.get_level_values(1)) / \
-                                               (_intervals[0].right - _intervals[0].left)
+                             (_intervals[0].right - _intervals[0].left)
 
         _sfc_wt['wt_2ds'] = _sfc_wt['2DS10_L'] * (_sfc_wt.index.get_level_values(1) - _intervals[0].left) / \
-                                                 (_intervals[0].right - _intervals[0].left)
+                            (_intervals[0].right - _intervals[0].left)
 
         _fcd_2ds = _sfc_wt[['wt_fcdp', 'wt_2ds']].sum(axis=1).unstack()
 
@@ -320,9 +321,9 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
                                     (nd_overlap.stack()['HVPS'].notnull())))]
 
         _sdd['2ds10_wgt'] = _sdd['2DS10_R'] * (_intervals[-1].right - _sdd.index.get_level_values(1)) / \
-                                              (_intervals[-1].right - _intervals[1].left)
+                            (_intervals[-1].right - _intervals[1].left)
         _sdd['hvps_wgt'] = _sdd['HVPS'] * (_sdd.index.get_level_values(1) - _intervals[-1].left) / \
-                                          (_intervals[-1].right - _intervals[-1].left)
+                           (_intervals[-1].right - _intervals[-1].left)
         _sdd['nd_res'] = _sdd[['2ds10_wgt', 'hvps_wgt']].sum(1)
 
         _sdd = _sdd['nd_res'].unstack()
@@ -373,71 +374,115 @@ def pds_parameters(nd):
     return pd.concat([lwc, dm, nw, z, sigmasqr], axis=1, keys=_, levels=[_])
 
 
-def bcksct(ds, instrument, _lower, _upper, ar=1, j=0) -> pd.DataFrame:
+def _scatterer(diameters, ar, wl, j=0, rt=tmatrix.Scatterer.RADIUS_MAXIMUM, forward=True):
     """
-
-    :param _upper: upper diameter of the pds
-    :param _lower: upper diameter of the pds
-    :param instrument:
-    :param ds: numpy array of particle diameters. should be in millimeters
-    :param ar: axis ratio of the particle
+    Function that computes the scatterer object using pytmatrix package
+    :param diameters: numpy array with diameters in mm
+    :param ar: numpy array with axis ratio values
+    :param wl: wavelength for which scatterer will be computed. e.g "Ka"
     :param j: Zenith angle input
-    :return:
+    :param rt: maximum radius in mm
+    :param forward: True if forward scattering geometry. False will use backward scattering geometry.
+    :return: list of scatterers objects
     """
-    x_ku = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_Ku
-    x_ka = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_Ka
-    x_w = 2 * np.pi * (ds / 2.) / tmatrix_aux.wl_W
+    if forward:
+        gm = tmatrix_aux.geom_horiz_forw
+    else:
+        gm = tmatrix_aux.geom_horiz_back
+
+    if wl == "Ku":
+        wlg = tmatrix_aux.wl_Ku
+        m = refractive.m_w_0C[tmatrix_aux.wl_Ku]
+    elif wl == "Ka":
+        wlg = tmatrix_aux.wl_Ka
+        m = refractive.m_w_0C[tmatrix_aux.wl_Ka]
+    elif wl == "W":
+        wlg = tmatrix_aux.wl_W
+        m = refractive.m_w_0C[tmatrix_aux.wl_W]
+    else:
+        raise Exception('wl {} not valid. Please use Ka, Ku, or W'.format(wl))
+
+    return [tmatrix.Scatterer(radius=d / 2., wavelength=wlg, m=m, axis_ratio=1.0 / ar[idx], thet0=j,
+                              thet=180 - j, phi0=0., phi=180., radius_type=rt,
+                              geometry=gm) for idx, d in enumerate(diameters)]
+
+
+def bck_extc_crss(diameters, instrument, _lower, _upper, ar=None, j=0) -> pd.DataFrame:
+    """
+    Function that computes the backscatter and extinction cross-section for a particle.
+    :param diameters: numpy array of diameters (mm) to which bcksct or extc will be computed.
+    :param instrument: instrument for naming the database where bcksct or extc will be stored. e.g. "2DS"
+    :param _lower: min diameter.
+    :param _upper: max diameter
+    :param ar: axis ratio numpy array
+    :param j: Zenith angle input
+    :return: Pandas dataframe with backscattering and extinction cross-section for Ku, Ka, and W band radar
+    """
+    if not ar:
+        andsager_ar: Callable[[float], float] = lambda d: 1.0048 + 0.0057 * d - 2.628 * d ** 2 + 3.682 * d ** 3 - \
+                                                          1.677 * d ** 4
+        ar = andsager_ar(diameters / 10)
+
+    x_ku = 2 * np.pi * (diameters / 2.) / tmatrix_aux.wl_Ku
+    x_ka = 2 * np.pi * (diameters / 2.) / tmatrix_aux.wl_Ka
+    x_w = 2 * np.pi * (diameters / 2.) / tmatrix_aux.wl_W
+
     # Tmatrix calculations
-    tmat_ku = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_Ku,
-                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ku], axis_ratio=1.0 / ar, thet0=j,
-                                                   thet=180 - j,
-                                                   phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
-               i in ds]
-    tmat_ka = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_Ka,
-                                                   m=refractive.m_w_0C[tmatrix_aux.wl_Ka], axis_ratio=1.0 / ar, thet0=j,
-                                                   thet=180 - j,
-                                                   phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
-               i in ds]
-    tmat_w = [radar.radar_xsect(tmatrix.Scatterer(radius=i / 2., wavelength=tmatrix_aux.wl_W,
-                                                  m=refractive.m_w_0C[tmatrix_aux.wl_W], axis_ratio=1.0 / ar, thet0=j,
-                                                  thet=180 - j,
-                                                  phi0=0., phi=180., radius_type=tmatrix.Scatterer.RADIUS_MAXIMUM)) for
-              i in ds]
+    # forward scatterer
+    ku_scatter_fw = _scatterer(diameters=diameters, ar=ar, wl='Ku', j=j)
+    ka_scatter_fw = _scatterer(diameters=diameters, ar=ar, wl='Ka', j=j)
+    w_scatter_fw = _scatterer(diameters=diameters, ar=ar, wl='W', j=j)
+
+    # extinction cross-section
+    ku_extinction = [ext_xsect(i) for i in ku_scatter_fw]
+    ka_extinction = [ext_xsect(i) for i in ka_scatter_fw]
+    w_extinction = [ext_xsect(i) for i in w_scatter_fw]
+
+    # backward scatterer
+    ku_scatter_bw = _scatterer(diameters=diameters, ar=ar, wl='Ku', j=j, forward=False)
+    ka_scatter_bw = _scatterer(diameters=diameters, ar=ar, wl='Ka', j=j, forward=False)
+    w_scatter_bw = _scatterer(diameters=diameters, ar=ar, wl='W', j=j, forward=False)
+
+    # Backscattering cross-section
+    ku_bckscatt = [radar.radar_xsect(i) for i in ku_scatter_bw]
+    ka_bckscatt = [radar.radar_xsect(i) for i in ka_scatter_bw]
+    w_bckscatt = [radar.radar_xsect(i) for i in w_scatter_bw]
 
     # Mie calculations
     mie_ku = [Mie(x=x_ku[w], m=refractive.m_w_0C[tmatrix_aux.wl_Ku]).qb() * np.pi * (i / 2.) ** 2 for w, i in
-              enumerate(ds)]
+              enumerate(diameters)]
     mie_ka = [Mie(x=x_ka[w], m=refractive.m_w_0C[tmatrix_aux.wl_Ka]).qb() * np.pi * (i / 2.) ** 2 for w, i in
-              enumerate(ds)]
+              enumerate(diameters)]
     mie_w = [Mie(x=x_w[w], m=refractive.m_w_0C[tmatrix_aux.wl_W]).qb() * np.pi * (i / 2.) ** 2 for w, i in
-             enumerate(ds)]
+             enumerate(diameters)]
+
     df_scatter = pd.DataFrame(
-        {'T_mat_Ku': tmat_ku, 'T_mat_Ka': tmat_ka, 'T_mat_W': tmat_w, 'Mie_Ku': mie_ku, 'Mie_Ka': mie_ka,
-         'Mie_W': mie_w}, index=ds)
+        {'T_mat_Ku': ku_bckscatt, 'T_mat_Ka': ka_bckscatt, 'T_mat_W': w_bckscatt, 'Mie_Ku': mie_ku, 'Mie_Ka': mie_ka,
+         'Mie_W': mie_w, 'Ku_extc': ku_extinction, 'Ka_extc': ka_extinction, "W_extc": w_extinction}, index=diameters)
     path_db = f'{path_data}/cloud_probes/db'
     make_dir(path_db)
-    str_db = f"sqlite:///{path_db}/backscatter_{_lower}_{_upper}.sqlite"
+    str_db = f"sqlite:///{path_db}/scattering_{_lower}_{_upper}.sqlite"
     df_scatter.to_sql(f'{instrument}', con=str_db, if_exists='replace')
     return df_scatter
 
 
-def ref_calc(nd, _lower, _upper, mie=False):
+def radar_calc(nd, _lower, _upper, mie=False):
     ds = np.fromiter(nd.attrs['dsizes'].keys(), dtype=float) / 1e3
     try:
         path_db = f'{path_data}/cloud_probes/db'
         str_db = f"sqlite:///{path_db}/backscatter_{_lower}_{_upper}.sqlite"
         backscatter = pd.read_sql(f"{nd.attrs['instrument']}", con=str_db)
     except (OperationalError, ValueError):
-        backscatter = bcksct(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
+        backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
 
     if len(ds) != backscatter.shape[0]:
-        backscatter = bcksct(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
+        backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
 
     dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float) / 1e3
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
     w_wvl = c / 95e9 * 1000
-    wvl = ['z_Ku', 'z_Ka', 'z_W']
+    wvl = ['z_Ku', 'z_Ka', 'z_W', 'A_Ku', 'A_Ka', 'A_W']
     if mie:
         z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['Mie_Ku'].values,
                                                                      axis='columns').mul(dsizes)
@@ -445,8 +490,6 @@ def ref_calc(nd, _lower, _upper, mie=False):
                                                                      axis='columns').mul(dsizes)
         z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['Mie_W'].values,
                                                                    axis='columns').mul(dsizes)
-        df_z = pd.concat([z_ku, z_ka, z_w], axis=1, keys=wvl, levels=[wvl])
-        return df_z
     else:
         z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['T_mat_Ku'].values,
                                                                      axis='columns').mul(dsizes)
@@ -454,8 +497,16 @@ def ref_calc(nd, _lower, _upper, mie=False):
                                                                      axis='columns').mul(dsizes)
         z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['T_mat_W'].values,
                                                                    axis='columns').mul(dsizes)
-        df_z = pd.concat([z_ku, z_ka, z_w], axis=1, keys=wvl, levels=[wvl])
-        return df_z
+
+    att_ku = (0.01 / np.log10(10)) * nd.mul(1e6).mul(backscatter['Ku_extc'].values,
+                                                     axis='columns').mul(dsizes)
+    att_ka = (0.01 / np.log10(10)) * nd.mul(1e6).mul(backscatter['Ka_extc'].values,
+                                                     axis='columns').mul(dsizes)
+    att_w = (0.01 / np.log10(10)) * nd.mul(1e6).mul(backscatter['W_extc'].values,
+                                                    axis='columns').mul(dsizes)
+
+    df_radar = pd.concat([z_ku, z_ka, z_w, att_ku, att_ka, att_w], axis=1, keys=wvl, levels=[wvl])
+    return df_radar
 
 
 def compute_hr(t, td):
@@ -499,9 +550,9 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 def area_filter(ds):
     diameter = ds.attrs['bin_cent'] / 1e3  # mm
-    ar_func: Callable[[float], float] = lambda d: 0.9951 + 0.0251 * d - 0.03644 * d ** 2 + 0.005303 * \
-                                                  d ** 3 - 0.0002492 * d ** 4  # d in mm
-    ar = ar_func(diameter)  # mm
+    andsager_ar: Callable[[float], float] = lambda d: 0.9951 + 0.0251 * d - 0.03644 * d ** 2 + 0.005303 * \
+                                                      d ** 3 - 0.0002492 * d ** 4  # d in mm
+    ar = andsager_ar(diameter)  # mm
     area_func: Callable[[float], float] = lambda x: np.pi * (x / 2) ** 2
     area = area_func(diameter) / 1e5
     _lower = area * ar * 0.5
@@ -553,7 +604,7 @@ def main():
         df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
         df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
                                method='snal')
-        df_reflectivity = ref_calc(df_merged, _upper=_upper, _lower=_lower)
+        df_reflectivity = radar_calc(df_merged, _upper=_upper, _lower=_lower)
         params = pds_parameters(df_merged)
         df_add = get_add_data(air, indexx=indexx)
         d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
@@ -564,6 +615,9 @@ def main():
                 refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
                 refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
                 refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
+                A_ku=(["time", "diameter"], df_reflectivity['A_Ku'].to_numpy()),
+                A_ka=(["time", "diameter"], df_reflectivity['A_Ka'].to_numpy()),
+                A_w=(["time", "diameter"], df_reflectivity['A_W'].to_numpy()),
                 lwc=(["time", "diameter"], params['lwc'].to_numpy()),
                 nw=(["time"], params['nw'].to_numpy()[:, 0]),
                 dm=(["time"], params['dm'].to_numpy()[:, 0]),
