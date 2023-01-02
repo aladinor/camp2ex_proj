@@ -470,7 +470,7 @@ def radar_calc(nd, _lower, _upper, mie=False):
     ds = np.fromiter(nd.attrs['dsizes'].keys(), dtype=float) / 1e3
     try:
         path_db = f'{path_data}/cloud_probes/db'
-        str_db = f"sqlite:///{path_db}/backscatter_{_lower}_{_upper}.sqlite"
+        str_db = f"sqlite:///{path_db}/scattering_{_lower}_{_upper}.sqlite"
         backscatter = pd.read_sql(f"{nd.attrs['instrument']}", con=str_db)
     except (OperationalError, ValueError):
         backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
