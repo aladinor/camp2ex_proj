@@ -627,6 +627,7 @@ def main():
                 Att_w=(["time"], 10 * np.log10(df_reflectivity['A_W'].sum(1))),
                 lwc=(["time", "diameter"], params['lwc'].to_numpy()),
                 lwc_cum=(["time"], params['lwc'].sum(1).to_numpy()),
+                mu=(["time"], params['mu'].to_numpy()[:, 0]),
                 nw=(["time"], params['nw'].to_numpy()[:, 0]),
                 log10_nw=(["time"], np.log10(params['nw'].to_numpy()[:, 0])),
                 dm=(["time"], params['dm'].to_numpy()[:, 0]),
