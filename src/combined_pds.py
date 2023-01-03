@@ -368,10 +368,10 @@ def pds_parameters(nd):
     dm = nd.mul(1e6).mul(d ** 4).mul(d_d).sum(1) / nd.mul(1e6).mul(d ** 3).mul(d_d).sum(1)  # mm
     nw = 1e3 * (4 ** 4 / np.pi) * (lwc.sum(1) / dm ** 4)
     z = nd.mul(1e6).mul(d ** 6).mul(d_d)
-    sigmasqr = (d.sub(dm, axis='rows') ** 2 * (nd * 1e6 * d_d ** 3)) / (nd * 1e6 * d ** 3 * d_d)
-    sigmasqr = sigmasqr.sum(1)
-    _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr']
-    return pd.concat([lwc, dm, nw, z, sigmasqr], axis=1, keys=_, levels=[_])
+    sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6).mul(d ** 3).mul(d_d).div(nd * 1e6 * d ** 3 * d_d).sum(1)
+    sigma = np.sqrt(sigmasqr)
+    _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr', 'sigma']
+    return pd.concat([lwc, dm, nw, z, sigmasqr, sigma], axis=1, keys=_, levels=[_])
 
 
 def _scatterer(diameters, ar, wl, j=0, rt=tmatrix.Scatterer.RADIUS_MAXIMUM, forward=True):
