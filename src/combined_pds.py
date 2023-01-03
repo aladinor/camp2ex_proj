@@ -623,6 +623,7 @@ def main():
                 dm=(["time"], params['dm'].to_numpy()[:, 0]),
                 z=(["time", "diameter"], params['z'].to_numpy()),
                 sigmasqr=(["time"], params['sigmasqr'].to_numpy()[:, 0]),
+                sigma=(["time"], params['sigma'].to_numpy()[:, 0]),
                 temp=(["time"], df_merged['temp'].to_numpy()),
                 dew_point=(["time"], df_merged['dew_point'].to_numpy()),
                 altitude=(["time"], df_merged['altitude'].to_numpy()),
