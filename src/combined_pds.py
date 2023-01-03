@@ -368,10 +368,11 @@ def pds_parameters(nd):
     dm = nd.mul(1e6).mul(d ** 4).mul(d_d).sum(1) / nd.mul(1e6).mul(d ** 3).mul(d_d).sum(1)  # mm
     nw = 1e3 * (4 ** 4 / np.pi) * (lwc.sum(1) / dm ** 4)
     z = nd.mul(1e6).mul(d ** 6).mul(d_d)
-    sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6).mul(d ** 3).mul(d_d).div(nd * 1e6 * d ** 3 * d_d).sum(1)
+    sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6 * d ** 3 * d_d).div(nd * 1e6 * d ** 3 * d_d).sum(1)
     sigma = np.sqrt(sigmasqr)
-    _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr', 'sigma']
-    return pd.concat([lwc, dm, nw, z, sigmasqr, sigma], axis=1, keys=_, levels=[_])
+    mu = dm ** 2 / sigmasqr - 4
+    _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr', 'sigma', 'mu']
+    return pd.concat([lwc, dm, nw, z, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
 
 
 def _scatterer(diameters, ar, wl, j=0, rt=tmatrix.Scatterer.RADIUS_MAXIMUM, forward=True):
@@ -615,11 +616,19 @@ def main():
                 refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
                 refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
                 refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
+                dbz_t_ku=(["time"], 10 * np.log10(df_reflectivity['z_Ku'].sum(1))),
+                dbz_t_ka=(["time"], 10 * np.log10(df_reflectivity['z_Ka'].sum(1))),
+                dbz_t_w=(["time"], 10 * np.log10(df_reflectivity['z_W'].sum(1))),
                 A_ku=(["time", "diameter"], df_reflectivity['A_Ku'].to_numpy()),
                 A_ka=(["time", "diameter"], df_reflectivity['A_Ka'].to_numpy()),
                 A_w=(["time", "diameter"], df_reflectivity['A_W'].to_numpy()),
+                Att_ku=(["time"], 10 * np.log10(df_reflectivity['A_Ku'].sum(1))),
+                Att_ka=(["time"], 10 * np.log10(df_reflectivity['A_Ka'].sum(1))),
+                Att_w=(["time"], 10 * np.log10(df_reflectivity['A_W'].sum(1))),
                 lwc=(["time", "diameter"], params['lwc'].to_numpy()),
+                lwc_cum=(["time"], params['lwc'].sum(1).to_numpy()),
                 nw=(["time"], params['nw'].to_numpy()[:, 0]),
+                log10_nw=(["time"], np.log10(params['nw'].to_numpy()[:, 0])),
                 dm=(["time"], params['dm'].to_numpy()[:, 0]),
                 z=(["time", "diameter"], params['z'].to_numpy()),
                 sigmasqr=(["time"], params['sigmasqr'].to_numpy()[:, 0]),
