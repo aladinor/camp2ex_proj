@@ -368,7 +368,7 @@ def pds_parameters(nd):
     dm = nd.mul(1e6).mul(d ** 4).mul(d_d).sum(1) / nd.mul(1e6).mul(d ** 3).mul(d_d).sum(1)  # mm
     nw = 1e3 * (4 ** 4 / np.pi) * (lwc.sum(1) / dm ** 4)
     z = nd.mul(1e6).mul(d ** 6).mul(d_d)
-    sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6 * d ** 3 * d_d).div(nd * 1e6 * d ** 3 * d_d).sum(1)
+    sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6 * d ** 3 * d_d).sum(1) / (nd * 1e6 * d ** 3 * d_d).sum(1)
     sigma = np.sqrt(sigmasqr)
     mu = dm ** 2 / sigmasqr - 4
     _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr', 'sigma', 'mu']
