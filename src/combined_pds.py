@@ -576,7 +576,7 @@ def fill_2ds(ls_df):
 
 
 def filter_by_bins(df_merged, nbis=10):
-    df_merged['nbins'] = df_merged.apply(lambda row: row.replace(0, np.nan).notnull().astype(int). \
+    df_merged['nbins'] = df_merged.apply(lambda row: row.replace([-9.99, 0], np.nan).notnull().astype(int). \
                                          groupby(row.replace(0, np.nan).isnull().astype(int).cumsum()).cumsum().max(),
                                          axis=1)
     df_merged = df_merged[df_merged['nbins'] >= nbis]
@@ -597,6 +597,7 @@ def main():
         ls_df = filter_by_cols(ls_df)
         instr = [i.attrs['instrument'] for i in ls_df]
         attrs = [i.attrs for i in ls_df]
+        ls_df = [filter_by_bins(i) for i in ls_df if i.attrs['instrument'] in ['2DS10', 'HVPS']]
         dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
         for idx, att in enumerate(attrs):
             ls_df[idx].attrs = attrs[0]
