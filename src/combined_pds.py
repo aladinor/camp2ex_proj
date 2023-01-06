@@ -576,8 +576,10 @@ def fill_2ds(ls_df):
 
 
 def filter_by_bins(df_merged, nbis=10):
-    df_merged['nbins'] = df_merged.apply(lambda row: row.replace([-9.99, 0], np.nan).notnull().astype(int). \
-                                         groupby(row.replace(0, np.nan).isnull().astype(int).cumsum()).cumsum().max(),
+    df_merged['nbins'] = df_merged.apply(lambda row:
+                                         row.replace([-9.99, 0], np.nan).notnull().astype(int).groupby(
+                                             row.replace([-9.99, 0], np.nan).isnull().astype(
+                                                 int).cumsum()).cumsum().max(),
                                          axis=1)
     df_merged = df_merged[df_merged['nbins'] >= nbis]
     df_merged = df_merged.drop(['nbins'], axis=1)
