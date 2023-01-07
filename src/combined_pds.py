@@ -575,15 +575,33 @@ def fill_2ds(ls_df):
     return ls_df
 
 
-def filter_by_bins(df_merged, nbis=10):
-    df_merged['nbins'] = df_merged.apply(lambda row:
-                                         row.replace([-9.99, 0], np.nan).notnull().astype(int).groupby(
-                                             row.replace([-9.99, 0], np.nan).isnull().astype(
-                                                 int).cumsum()).cumsum().max(),
-                                         axis=1)
-    df_merged = df_merged[df_merged['nbins'] >= nbis]
-    df_merged = df_merged.drop(['nbins'], axis=1)
-    return df_merged
+def filter_by_bins(df, n_bis=10, dt=None):
+    """
+    Function that filter a pandas dataframe row with less than nbins of consecutive data
+    :param dt: dictionary with lowwer and upper limits
+    :param df: pandas dataframe with psd data.
+    :param n_bis: number of consecutive bins
+    :return: filtered dataframe
+    """
+    if not dt:
+        dt = {'2DS10': {'low': 50., 'up': 1000.},
+              'Hawk2DS10': {'low': 50., 'up': 1000.},
+              'HVPS': {'low': 300, 'up': 4000.}}
+    cols = df.columns
+    new_cols = [i for i in cols if (i >= dt[df.attrs['instrument']]['low'])]
+    new_cols = [i for i in new_cols if (i <= dt[df.attrs['instrument']]['up'])]
+    df_copy = df[new_cols]
+    df_ones = df_copy.replace([-9.99, 0], np.nan).notnull().astype(int)
+    df_cum = df_ones.cumsum(1).replace(0, np.nan)
+    _reset = -df_cum[df.replace([-9.99, 0], np.nan).isnull()].fillna(method='pad', axis=1). \
+                                                              diff(axis=1).replace(0, np.nan).fillna(df_cum)
+    res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1)
+    res = res[res > 0].max(axis=1)
+    df['nbins'] = res
+    df = df[df['nbins'] >= n_bis]
+    df = df.drop(['nbins'], axis=1)
+    del df_ones, df_cum, _reset, res, df_copy
+    return df
 
 
 def main():
@@ -598,8 +616,8 @@ def main():
         ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
         ls_df = filter_by_cols(ls_df)
         instr = [i.attrs['instrument'] for i in ls_df]
-        attrs = [i.attrs for i in ls_df]
         ls_df = [filter_by_bins(i) for i in ls_df if i.attrs['instrument'] in ['2DS10', 'HVPS']]
+        attrs = [i.attrs for i in ls_df]
         dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
         for idx, att in enumerate(attrs):
             ls_df[idx].attrs = attrs[0]
@@ -617,7 +635,6 @@ def main():
         df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
         df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
                                method='snal')
-        df_merged = filter_by_bins(df_merged)
         df_reflectivity = radar_calc(df_merged, _upper=_upper, _lower=_lower)
         params = pds_parameters(df_merged)
         df_add = get_add_data(air, indexx=indexx)
