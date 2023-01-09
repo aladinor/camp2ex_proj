@@ -551,17 +551,16 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 
 def area_filter(ds):
     diameter = ds.attrs['bin_cent'] / 1e3  # mm
-    andsager_ar: Callable[[float], float] = lambda d: 0.9951 + 0.0251 * d - 0.03644 * d ** 2 + 0.005303 * \
-                                                      d ** 3 - 0.0002492 * d ** 4  # d in mm
-    ar = andsager_ar(diameter)  # mm
+    andsager_ar: Callable[[float], float] = lambda d: 1.0048 + 0.0057 * d - 2.628 * d ** 2 + 3.682 * d ** 3 - \
+                                                          1.677 * d ** 4
+    ar = andsager_ar(diameter / 10)
     area_func: Callable[[float], float] = lambda x: np.pi * (x / 2) ** 2
     area = area_func(diameter) / 1e5
-    _lower = area * ar * 0.5
-    _upper = area * ar * 2
-    df_area = ds.filter(like='a_bin')
-    df_cnt = ds.filter(like='cnt')
-    df_filter = pd.DataFrame(df_area.values / df_cnt.values, index=ds.index, columns=ds.filter(like='nsd').columns)
-    ds_area = df_filter[(df_filter >= _lower) & (df_filter <= _upper)].notnull()
+    _lower = area * ar
+    _upper = area * ar + area * ar * 2
+    avg_area = ds.filter(like='a_bin').values / ds.filter(like='cnt').values
+    df_area = pd.DataFrame(avg_area, index=ds.index, columns=ds.filter(like='nsd').columns, dtype='float64')
+    ds_area = df_area[(df_area >= _lower) & (df_area <= _upper)].notnull()
     cols = ds.filter(like='nsd').columns
     ds.loc[:, cols] = ds.filter(like='nsd')[ds_area]
     return ds
@@ -594,7 +593,7 @@ def filter_by_bins(df, n_bis=10, dt=None):
     df_ones = df_copy.replace([-9.99, 0], np.nan).notnull().astype(int)
     df_cum = df_ones.cumsum(1).replace(0, np.nan)
     _reset = -df_cum[df.replace([-9.99, 0], np.nan).isnull()].fillna(method='pad', axis=1). \
-                                                              diff(axis=1).replace(0, np.nan).fillna(df_cum)
+                     diff(axis=1).replace(0, np.nan).fillna(df_cum)
     res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1)
     res = res[res > 0].max(axis=1)
     df['nbins'] = res
