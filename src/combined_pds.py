@@ -574,12 +574,12 @@ def fill_2ds(ls_df):
     return ls_df
 
 
-def filter_by_bins(df, n_bis=10, dt=None):
+def filter_by_bins(df, nbins=10, dt=None):
     """
     Function that filter a pandas dataframe row with less than nbins of consecutive data
     :param dt: dictionary with lowwer and upper limits
     :param df: pandas dataframe with psd data.
-    :param n_bis: number of consecutive bins
+    :param nbins: number of consecutive bins
     :return: filtered dataframe
     """
     if not dt:
@@ -597,7 +597,7 @@ def filter_by_bins(df, n_bis=10, dt=None):
     res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1)
     res = res[res > 0].max(axis=1)
     df['nbins'] = res
-    df = df[df['nbins'] >= n_bis]
+    df = df[df['nbins'] >= nbins]
     df = df.drop(['nbins'], axis=1)
     del df_ones, df_cum, _reset, res, df_copy
     return df
