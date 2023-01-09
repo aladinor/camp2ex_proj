@@ -419,7 +419,7 @@ def bck_extc_crss(diameters, instrument, _lower, _upper, ar=None, j=0) -> pd.Dat
     :param j: Zenith angle input
     :return: Pandas dataframe with backscattering and extinction cross-section for Ku, Ka, and W band radar
     """
-    if not ar:
+    if ar is None:
         andsager_ar: Callable[[float], float] = lambda d: 1.0048 + 0.0057 * d - 2.628 * d ** 2 + 3.682 * d ** 3 - \
                                                           1.677 * d ** 4
         ar = andsager_ar(diameters / 10)
@@ -474,10 +474,12 @@ def radar_calc(nd, _lower, _upper, mie=False):
         str_db = f"sqlite:///{path_db}/scattering_{_lower}_{_upper}.sqlite"
         backscatter = pd.read_sql(f"{nd.attrs['instrument']}", con=str_db)
     except (OperationalError, ValueError):
-        backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
+        ar = np.ones_like(ds)
+        backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper, ar=ar)
 
     if len(ds) != backscatter.shape[0]:
-        backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper)
+        ar = np.ones_like(ds)
+        backscatter = bck_extc_crss(ds, nd.attrs['instrument'], _lower=_lower, _upper=_upper, ar=ar)
 
     dsizes = np.fromiter(nd.attrs['dsizes'].values(), dtype=float) / 1e3
     ku_wvl = c / 14e9 * 1000
