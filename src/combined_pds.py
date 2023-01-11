@@ -350,29 +350,35 @@ def linear_wgt2(df, intervals: list[int], method='snal'):
         return nd_res
 
 
-def vel(d):
-    return -0.1021 + 4.932 * d - 0.955 * d ** 2 + 0.07934 * d ** 3 - 0.0023626 * d ** 4
-
-
-def pds_parameters(nd):
+def pds_parameters(nd, vel="lhermitte"):
     """
     Compute the psd parameters
     :param nd: partice size distribution in # L-1 um-1
+    :param vel: equation used for terminal velocity stimation. By default Lhermitte.
     :return: list with lwc, dm, nw, z, and r
     """
+    lerm_vel: Callable[[float], float] = lambda diam: 9.25 * (1 - np.exp(-0.068 * diam ** 2 - 0.488 * diam))  # d in mm
+    ulbr_vel: Callable[[float], float] = lambda diam: 3.78 * diam ** 0.67  # with d in mm
+
     d = pd.DataFrame(data=np.tile(np.fromiter(nd.columns, dtype=float) / 1e3, (nd.shape[0], 1)), index=nd.index,
                      columns=nd.columns)
     d_d = pd.DataFrame(data=np.tile(np.fromiter(nd.attrs['dsizes'].values(), dtype=float) / 1e3,
                                     (nd.shape[0], 1)), index=nd.index, columns=nd.columns)
+    if vel == "lhermitte":
+        vel = lerm_vel(d)
+    else:
+        vel = ulbr_vel(d)
+
     lwc = nd.mul(1e6).mul(d ** 3).mul(d_d) * (np.pi / (6 * 1000))  # g / m3
     dm = nd.mul(1e6).mul(d ** 4).mul(d_d).sum(1) / nd.mul(1e6).mul(d ** 3).mul(d_d).sum(1)  # mm
     nw = 1e3 * (4 ** 4 / np.pi) * (lwc.sum(1) / dm ** 4)
     z = nd.mul(1e6).mul(d ** 6).mul(d_d)
+    r = 6 * np.pi * 1e-4 * (nd.mul(1e6).mul(d ** 3).mul(d_d).mul(vel)).sum(1)
     sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6 * d ** 3 * d_d).sum(1) / (nd * 1e6 * d ** 3 * d_d).sum(1)
     sigma = np.sqrt(sigmasqr)
     mu = dm ** 2 / sigmasqr - 4
-    _ = ['lwc', 'dm', 'nw', 'z', 'sigmasqr', 'sigma', 'mu']
-    return pd.concat([lwc, dm, nw, z, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
+    _ = ['lwc', 'dm', 'nw', 'z', 'r', 'sigmasqr', 'sigma', 'mu']
+    return pd.concat([lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
 
 
 def _scatterer(diameters, ar, wl, j=0, rt=tmatrix.Scatterer.RADIUS_MAXIMUM, forward=True):
@@ -554,7 +560,7 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
 def area_filter(ds):
     diameter = ds.attrs['bin_cent'] / 1e3  # mm
     andsager_ar: Callable[[float], float] = lambda d: 1.0048 + 0.0057 * d - 2.628 * d ** 2 + 3.682 * d ** 3 - \
-                                                          1.677 * d ** 4
+                                                      1.677 * d ** 4
     ar = andsager_ar(diameter / 10)
     area_func: Callable[[float], float] = lambda x: np.pi * (x / 2) ** 2
     area = area_func(diameter) / 1e5
@@ -664,6 +670,7 @@ def main():
                     log10_nw=(["time"], np.log10(params['nw'].to_numpy()[:, 0])),
                     dm=(["time"], params['dm'].to_numpy()[:, 0]),
                     z=(["time", "diameter"], params['z'].to_numpy()),
+                    r=(["time"], params['r'].to_numpy()[:, 0]),
                     sigmasqr=(["time"], params['sigmasqr'].to_numpy()[:, 0]),
                     sigma=(["time"], params['sigma'].to_numpy()[:, 0]),
                     temp=(["time"], df_merged['temp'].to_numpy()),
