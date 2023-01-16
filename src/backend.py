@@ -16,9 +16,9 @@ from src.utils import get_pars_from_ini
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
-ls_p3 = glob.glob(f'{path_data}/data/LAWSON.PAUL/P3B/all/*.pkl')
-ls_lear = glob.glob(f'{path_data}/data/LAWSON.PAUL/LEARJET/all/*.pkl')
-ls_p3_merged = glob.glob(f'{path_data}/data/01_SECOND.P3B_MRG/MERGE/all/p3b*.pkl')
+ls_p3 = glob.glob(f'{path_data}/cloud_probes/pkl/*.pkl')
+ls_lear = glob.glob(f'{path_data}/cloud_probes/pkl/*.pkl')
+ls_p3_merged = glob.glob(f'{path_data}/cloud_probes/pkl/p3b*.pkl')
 p3_df = [pd.read_pickle(i) for i in ls_p3]
 lear_df = [pd.read_pickle(i) for i in ls_lear]
 dt_day = [{'label': f'{i: %Y-%m-%d}', 'value': f'{i}'} for i in p3_df[0].local_time.dt.floor('D').unique()]

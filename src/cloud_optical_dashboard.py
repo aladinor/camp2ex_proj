@@ -20,7 +20,7 @@ from src.backend import dt_aircraft, get_sensors, get_hour, get_minutes, get_sec
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 
-PLOTLY_LOGO = f"{path_data}/data/CAMPEX_Logo_Lg.png"
+PLOTLY_LOGO = f"{path_data}/data/CAMP2EX_Logo_2019.jpg"
 img = base64.b64encode(open(PLOTLY_LOGO, 'rb').read())
 
 NAVBAR = dbc.Navbar(
@@ -209,7 +209,7 @@ def update_sensor_day(aircraft):
     [Input('select-all', 'value')],
     [State("drop-aircraft", "value"),
      State('drop-sensor', 'options')])
-def test(selected, options_1, sensor):
+def runt(selected, options_1, sensor):
     if (sensor is None) or (options_1 is None) or (sensor is None):
         raise PreventUpdate
     elif len(selected) > 0:
