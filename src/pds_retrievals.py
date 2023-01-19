@@ -2,17 +2,13 @@
 # -*- coding: utf-8 -*-
 import sys
 import os
-import glob
-from typing import Callable
-
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import scipy.integrate
-from sqlalchemy.exc import OperationalError
 import xarray as xr
 from scipy.constants import c
 from scipy.special import gamma
+from scipy.optimize import minimize, brentq
+from dask import delayed, compute
 from re import split
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
@@ -37,33 +33,114 @@ def integral(dm, d, dd, mu=3, instrument='Composite_PSD', mie=False, band='Ku'):
     return i_b.sum('diameter')
 
 
-def main():
-    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_300_1000_4_bins.zarr')
+def objective_func(dm, xr_comb, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
-    w_wvl = c / 95e9 * 1000
-    t = 20
-    dm = xr_comb.isel(time=t).dm.values
-    mu = xr_comb.isel(time=t).mu.values
-    nw = xr_comb.isel(time=t).nw.values
-    z_ku = xr_comb.isel(time=t).dbz_t_ku.values
+    ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
+    ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
+    ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
+    ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
+    return ka - ku
+
+
+def equ_fucnt(dm, xr_comb, mu=3):
+    ku_wvl = c / 14e9 * 1000
+    ka_wvl = c / 35e9 * 1000
+    print(dm)
+    ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
+    ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
+    ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
+    ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
     dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
-    ib_ku_1 = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
-    z = 10 * np.log10(nw * (ku_wvl ** 4 / (np.pi ** 5 * 0.93) * ib_ku_1)).values
+    print((dfr - (ka - ku)).values)
+    return dfr - (ka - ku)
+
+
+def dm_solver(xr_comb, mu=3):
+    dm_bounds = [[0.1, 3.5]]
+    dm_const = {'type': 'eq', 'fun': equ_fucnt, 'args': (xr_comb, mu)}
+    dm_0 = np.array([1.75])
+    res = minimize(fun=objective_func, x0=dm_0, args=(xr_comb, mu), bounds=dm_bounds, constraints=dm_const, tol=1e-2,
+                   options={'maxiter': 50})
+    return xr.DataArray(res['x'], dims=['time'], coords=dict(time=(['time'], np.array([xr_comb.time.values]))))
+
+
+def rain_rate():
+    rr = 6 * np.pi * 1e-4 * nw
+    return
+
+
+def main():
+    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_300_1000_4_bins.zarr')
+    xr_comb = xr_comb.isel(time=range(15, 25))
+    ku_wvl = c / 14e9 * 1000
+    ka_wvl = c / 35e9 * 1000
+    # w_wvl = c / 95e9 * 1000
+    #
+    # ib_ku_1 = integral(dm=xr_comb.isel(time=20).dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3,
+    #                    mu=xr_comb.isel(time=20).mu, band="Ku")
+
+    # Solve for Dm using DFR
+    dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
+    dm_sol = [brentq(equ_fucnt, 0.5, 10, args=(i, 3))
+                        for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
+    dm_sol = xr.concat([dm_solver(i, mu=3) for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")], 'time')
+
+    fig, ax = plt.subplots()
+    sc = ax.scatter(xr_comb.dm, dm_sol, c=xr_comb.r)
+    ax.set_ylabel('Dm GPM')
+    ax.set_xlabel('Dm Truth')
+    x = np.linspace(*ax.get_xlim())
+    ax.plot(x, x)
+    plt.colorbar(sc, label='R (mmhr-1)')
+    plt.savefig('../results/dm_est.png')
+    plt.show()
+    print(1)
+
+    # ib_ku_1 = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
+    # z = 10 * np.log10(nw * (ku_wvl ** 4 / (np.pi ** 5 * 0.93) * ib_ku_1)).values
+
+    ib_ku_gpm = integral(dm=dm_sol, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=3, band="Ku")
+    ib_ka_gpm = integral(dm=dm_sol, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=xr_comb.mu, band="Ka")
+
+    dfr_gpm = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka_gpm) /
+                            ((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku_gpm))
+
+    fig, ax = plt.subplots()
+    sc = ax.scatter(dfr, dfr_gpm, c=xr_comb.r)
+    ax.set_ylabel('DFR GPM')
+    ax.set_xlabel('DFR Measured')
+    x = np.linspace(*ax.get_xlim())
+    ax.plot(x, x)
+    plt.colorbar(sc, label='R (mmhr-1)')
+    plt.savefig('../results/dm_gpm.png')
+    plt.show()
+    print(1)
+
     ib_ku = integral(dm=xr_comb.dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=xr_comb.mu, band="Ku")
-    ib_ku_const = integral(dm=xr_comb.dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=3, band="Ku")
     ib_ka = integral(dm=xr_comb.dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=xr_comb.mu, band="Ka")
     dfr_cal = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka) /
                             ((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
-    dfr_gpm = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka) /
-                            ((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku_const))
-    z_xr = 10 * np.log10(xr_comb.nw * (ku_wvl ** 4 / (np.pi ** 5 * 0.93) * ib_ku))
-
     fig, ax = plt.subplots()
-    ax.scatter(dfr, dfr_cal)
-    ax.scatter(dfr, dfr_gpm)
+    sc = ax.scatter(dfr, dfr_cal, c=xr_comb.r)
+    ax.set_ylabel('DFR Calculated')
+    ax.set_xlabel('DFR Measured')
     x = np.linspace(*ax.get_xlim())
     ax.plot(x, x)
+    plt.colorbar(sc, label='R (mmhr-1)')
+    plt.savefig('../results/dfr_est.png')
+    plt.show()
+    print(1)
+
+    log10_nw_GPM = xr_comb.dbz_t_ku - 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku_gpm))
+    fig, ax = plt.subplots()
+    sc = ax.scatter(xr_comb.log10_nw, log10_nw_GPM/10, c=xr_comb.r)
+    ax.set_ylabel('log10(Nw) GPM')
+    ax.set_xlabel('log10(Nw) Truth')
+    x = np.linspace(*ax.get_xlim())
+    ax.plot(x, x)
+    plt.colorbar(sc, label='R (mmhr-1)')
+    plt.savefig('../results/nw_gpm.png')
     plt.show()
     print(1)
     pass
