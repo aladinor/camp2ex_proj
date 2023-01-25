@@ -46,13 +46,11 @@ def objective_func(dm, xr_comb, mu=3):
 def equ_fucnt(dm, xr_comb, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
-    print(dm)
     ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
     ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
     ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
     dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
-    print((dfr - (ka - ku)).values)
     return dfr - (ka - ku)
 
 
@@ -63,6 +61,19 @@ def dm_solver(xr_comb, mu=3):
     res = minimize(fun=objective_func, x0=dm_0, args=(xr_comb, mu), bounds=dm_bounds, constraints=dm_const, tol=1e-2,
                    options={'maxiter': 50})
     return xr.DataArray(res['x'], dims=['time'], coords=dict(time=(['time'], np.array([xr_comb.time.values]))))
+
+
+def dm_optimization(dm1, dm2, xr_comb, mu=3, niter=100, tol=0.000001):
+    # for i in range(niter):
+    res = 1
+    while res >= tol:
+        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu).values
+        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu).values
+        f_diff = (fx2 - fx1) / (dm2 - dm1)
+        dm_new = dm1 - (fx1 / f_diff)
+        res = np.abs(dm_new-dm1)
+        dm1 = dm_new
+    return dm1
 
 
 def rain_rate():
@@ -79,9 +90,12 @@ def main():
     #
     # ib_ku_1 = integral(dm=xr_comb.isel(time=20).dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3,
     #                    mu=xr_comb.isel(time=20).mu, band="Ku")
-
+    # sol = [dm_optimization(dm1=1.5, dm2=2, xr_comb=i, mu=i.mu.values)
+    #        for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
+    sol = dm_optimization(dm1=1.5, dm2=2, xr_comb=xr_comb.isel(time=5), mu=xr_comb.isel(time=0).mu.values)
     # Solve for Dm using DFR
     dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
+    print(1)
     dm_sol = [brentq(equ_fucnt, 0.5, 10, args=(i, 3))
                         for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
     dm_sol = xr.concat([dm_solver(i, mu=3) for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")], 'time')
