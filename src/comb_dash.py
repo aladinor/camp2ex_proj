@@ -2,12 +2,13 @@ import glob
 import sys
 import os
 import dash
-import dash_html_components as html
 import plotly.graph_objs as go
 import numpy as np
 import xarray as xr
 from re import split
 from dash import dcc
+from dash import html
+from scipy.special import gamma
 
 app = dash.Dash()
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
@@ -19,7 +20,6 @@ path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 ds_files = glob.glob(f'{path_data}/cloud_probes/zarr/combined_psd_Lear*.zarr')
 ds_probes = glob.glob(f'{path_data}/cloud_probes/zarr/*Learjet.zarr')
 ds_probes = [i for i in ds_probes if i.replace("\\", '/').split('/')[-1].split('_')[0] in ['2DS10', 'HVPS']]
-
 
 app.layout = html.Div([
     html.Div([
@@ -45,7 +45,7 @@ app.layout = html.Div([
             hoverData={'points': [{'hovertext': '2019-09-07 2:32:10'}]}
         )
     ],
-        style={'width': '48%', 'display': 'inline-block','padding': '0 20'}),
+        style={'width': '48%', 'display': 'inline-block', 'padding': '0 20'}),
     html.Div([
         dcc.Graph(id='psd_series'),
     ], style={'display': 'inline-block', 'width': '48%'}
@@ -68,7 +68,12 @@ def update_graph(file):
             marker={
                 'size': 8,
                 'opacity': 0.5,
-                'line': {'width': 0.5, 'color': 'white'}
+                'line': {'width': 0.5, 'color': 'white'},
+                'color': ds.mu,
+                'colorscale': 'jet',
+                'colorbar': dict(thickness=5, outlinewidth=0),
+                'cmin': -2,
+                'cmax': 10
             },
         )],
         'layout': go.Layout(
@@ -87,6 +92,10 @@ def update_graph(file):
     }
 
 
+def norm_gamma(d, nw, dm, mu):
+    return nw * (6 * (mu + 4) ** (mu + 4)) / (4 ** 4 * gamma(mu + 4)) * (d / dm) ** mu * np.exp(-(mu+4) * d / dm)
+
+
 def create_time_series(date, xr_comb):
     ds_2ds = xr.open_zarr(ds_probes[0])
     x_2ds = ds_2ds.diameter / 1e3
@@ -101,7 +110,8 @@ def create_time_series(date, xr_comb):
     x_comb = xr_comb.diameter / 1e3
     y_comb = xr_comb.psd * 1e6
     y_comb = np.where(y_comb > 0, y_comb, np.nan)
-
+    nd = norm_gamma(d=xr_comb.diameter / 1e3, dm=xr_comb.dm, mu=xr_comb.mu, nw=xr_comb.nw)
+    nd = np.where(nd > 0, nd, np.nan)
     return {
         'data': [go.Scatter(
             x=x_2ds,
@@ -126,11 +136,19 @@ def create_time_series(date, xr_comb):
                 mode="lines",
                 line_shape="vh",
                 name='COMB.',
-                line=dict(color='black', width=1)
+                line=dict(color='black', width=1),
+            ),
+            go.Scatter(
+                x=x_comb,
+                y=nd,
+                mode="lines",
+                line_shape="vh",
+                name='Norm. Gamma',
+                line=dict(color='red', width=1)
             )
         ],
         'layout': go.Layout(
-            xaxis=dict(title="Dm (mm)", type='log', range=[-3, 1]),
+            xaxis=dict(title="D (mm)", type='log', range=[-3, 1]),
             yaxis=dict(title="N(d) (mm-3 m-3)", type='log', range=[0, 10]),
             annotations=[{
                 'x': 0, 'y': 1.05, 'xanchor': 'left', 'yanchor': 'bottom',
@@ -139,7 +157,7 @@ def create_time_series(date, xr_comb):
                 'text': f'{date}',
             }]
         )
-     }
+    }
 
 
 @app.callback(
@@ -158,5 +176,4 @@ app.css.append_css({
 })
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8055)
-
+    app.run_server(host='127.0.0.3', port=8055)
