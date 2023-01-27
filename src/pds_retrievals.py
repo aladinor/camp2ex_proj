@@ -40,7 +40,7 @@ def objective_func(dm, xr_comb, mu=3):
     ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
     ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
-    return ka - ku
+    return ku - ka
 
 
 def equ_fucnt(dm, xr_comb, mu=3):
@@ -51,7 +51,7 @@ def equ_fucnt(dm, xr_comb, mu=3):
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
     ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
     dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
-    return dfr - (ka - ku)
+    return dfr - ku - ka
 
 
 def dm_solver(xr_comb, mu=3):
@@ -63,16 +63,36 @@ def dm_solver(xr_comb, mu=3):
     return xr.DataArray(res['x'], dims=['time'], coords=dict(time=(['time'], np.array([xr_comb.time.values]))))
 
 
-def dm_optimization(dm1, dm2, xr_comb, mu=3, niter=100, tol=0.000001):
-    # for i in range(niter):
+def dm_optimization(dm1, dm2, xr_comb, mu=3, tol=0.000001, maxiter=100):
     res = 1
-    while res >= tol:
+    _iter = 0
+    dm_s = []
+    f_res = []
+    f_res2 = []
+    while not (_iter > maxiter or tol > res):
         fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu).values
         fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu).values
         f_diff = (fx2 - fx1) / (dm2 - dm1)
         dm_new = dm1 - (fx1 / f_diff)
-        res = np.abs(dm_new-dm1)
+        res = dm_new-dm1
+        if res is np.nan:
+            break
+        # dm1 = np.abs(dm_new)
         dm1 = dm_new
+        dm_s.append(dm1)
+        f_res.append(fx1)
+        f_res2.append(fx2)
+        _iter += 1
+    # x = np.arange(0, 5, 0.1)
+    # dm_plot = np.array([equ_fucnt(i, xr_comb=xr_comb, mu=mu) for i in x])
+    # fig, ax = plt.subplots()
+    # ax.plot(x, dm_plot)
+    # ax.plot(dm_s, f_res)
+    # ax.plot(dm_s, f_res2)
+    # ax.set_xlabel('Dm')
+    # ax.set_ylabel(f'DFR ({(xr_comb.dbz_t_ku - xr_comb.dbz_t_ka).values:.2f}) - Ib-Ku + Ib-Ka')
+    # plt.show()
+    # print(1)
     return dm1
 
 
@@ -82,22 +102,27 @@ def rain_rate():
 
 
 def main():
-    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_300_1000_4_bins.zarr')
+    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_300_1000_5_bins.zarr')
     xr_comb = xr_comb.isel(time=range(15, 25))
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
-    # w_wvl = c / 95e9 * 1000
-    #
-    # ib_ku_1 = integral(dm=xr_comb.isel(time=20).dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3,
-    #                    mu=xr_comb.isel(time=20).mu, band="Ku")
-    # sol = [dm_optimization(dm1=1.5, dm2=2, xr_comb=i, mu=i.mu.values)
-    #        for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
-    sol = dm_optimization(dm1=1.5, dm2=2, xr_comb=xr_comb.isel(time=5), mu=xr_comb.isel(time=0).mu.values)
-    # Solve for Dm using DFR
-    dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
+    # individal test
+    x = np.arange(0, 5, 0.1)
+    t = xr_comb.isel(time=1).time.values
+    real_dm = xr_comb.isel(time=1).dm.values
+    sol = dm_optimization(dm1=1.4, dm2=1, xr_comb=xr_comb.isel(time=1), mu=xr_comb.isel(time=1).mu.values)
+    sol2 = brentq(equ_fucnt, 0.5, 4.0, args=(xr_comb.isel(time=1), xr_comb.isel(time=1).mu.values))
     print(1)
-    dm_sol = [brentq(equ_fucnt, 0.5, 10, args=(i, 3))
+    # multiple test
+    sol = [dm_optimization(dm1=3, dm2=1.5, xr_comb=i, mu=i.mu.values)
+           for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
+
+    dm_sol = [brentq(equ_fucnt, 0.5, 3, args=(i, 3))
                         for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
+    # Solve for Dm using DFR
+    dm_real =  xr_comb.dm.values
+    dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
+
     dm_sol = xr.concat([dm_solver(i, mu=3) for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")], 'time')
 
     fig, ax = plt.subplots()

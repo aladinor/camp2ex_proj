@@ -42,7 +42,7 @@ app.layout = html.Div([
     html.Div([
         dcc.Graph(
             id='dm_nw',
-            hoverData={'points': [{'hovertext': '2019-09-07 2:32:10'}]}
+            hoverData={'points': [{'hovertext': '2019-09-07 2:32:08'}]}
         )
     ],
         style={'width': '48%', 'display': 'inline-block', 'padding': '0 20'}),
@@ -154,7 +154,13 @@ def create_time_series(date, xr_comb):
                 'x': 0, 'y': 1.05, 'xanchor': 'left', 'yanchor': 'bottom',
                 'xref': 'paper', 'yref': 'paper', 'showarrow': False,
                 'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
-                'text': f'{date}',
+                'text': f'{date}'},
+                {
+                'x': 0.5, 'y': 0.9, 'xanchor': 'left', 'yanchor': 'bottom',
+                'xref': 'paper', 'yref': 'paper', 'showarrow': False,
+                'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
+                'text': f'dm={xr_comb.dm.values:.2f}, mu={xr_comb.mu.values:.2f}, '
+                        f'log10(nw)={xr_comb.log10_nw.values:.2f}',
             }]
         )
     }
