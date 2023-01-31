@@ -126,6 +126,7 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear', lower_lim
     cond1 = (df1.columns.mid >= comb_lower) & (df1.columns.mid <= comb_upper)
     cond2 = (df2.columns.mid >= comb_lower) & (df2.columns.mid <= comb_upper)
     cond1_merg = (df1.columns.mid >= ovr_lower) & (df1.columns.mid <= ovr_upp)
+    cond2_merg = (df2.columns.mid >= ovr_lower) & (df2.columns.mid <= ovr_upp)
     _nd_uppr = df1.iloc[:, cond1]
     _nd_lower = df2.iloc[:, cond2]
     instr = ['2DS10', 'HVPS']
@@ -594,9 +595,11 @@ def filter_by_bins(df, nbins=10, dt=None):
         dt = {'2DS10': {'low': 50., 'up': 1000.},
               'Hawk2DS10': {'low': 50., 'up': 1000.},
               'HVPS': {'low': 300, 'up': 4000.}}
-    cols = df.columns
-    new_cols = [i for i in cols if (i >= dt[df.attrs['instrument']]['low'])]
-    new_cols = [i for i in new_cols if (i <= dt[df.attrs['instrument']]['up'])]
+        cols = df.columns
+        new_cols = [i for i in cols if (i >= dt[df.attrs['instrument']]['low'])]
+        new_cols = [i for i in new_cols if (i <= dt[df.attrs['instrument']]['up'])]
+    else:
+        new_cols = df.columns
     df_copy = df[new_cols]
     df_ones = df_copy.replace([-9.99, 0], np.nan).notnull().astype(int)
     df_cum = df_ones.cumsum(1).replace(0, np.nan)
@@ -612,6 +615,7 @@ def filter_by_bins(df, nbins=10, dt=None):
 
 
 def main():
+    _bef = False
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [300, 1000]
@@ -624,7 +628,8 @@ def main():
             ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
             ls_df = filter_by_cols(ls_df)
             instr = [i.attrs['instrument'] for i in ls_df]
-            ls_df = [filter_by_bins(i, nbins=nbin) for i in ls_df if i.attrs['instrument'] in ['2DS10', 'HVPS']]
+            if _bef is True:
+                ls_df = [filter_by_bins(i, nbins=nbin) for i in ls_df if i.attrs['instrument'] in ['2DS10', 'HVPS']]
             attrs = [i.attrs for i in ls_df]
             dt_attrs = {instr[i]: j for i, j in enumerate(attrs)}
             for idx, att in enumerate(attrs):
@@ -643,6 +648,8 @@ def main():
             df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
             df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
                                    method='snal')
+            if _bef is not True:
+                df_merged = filter_by_bins(df_merged, nbins=nbin, dt='Combined_PSD')
             df_reflectivity = radar_calc(df_merged, _upper=_upper, _lower=_lower)
             params = pds_parameters(df_merged)
             df_add = get_add_data(air, indexx=indexx)
@@ -700,7 +707,10 @@ def main():
                        'd_d': 'bin lenght in mm'
                        },
             )
-            store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
+            if _bef is True:
+                store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
+            else:
+                store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged.zarr"
             xr_merg.to_zarr(store=store, consolidated=True)
             print(1)
 
