@@ -4,6 +4,8 @@ import sys
 import os
 import glob
 from typing import Callable
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from sqlalchemy.exc import OperationalError
@@ -384,10 +386,11 @@ def pds_parameters(nd, vel="lhermitte"):
     df = pd.concat([lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
     res = np.zeros_like(br)
     for i in range(br.shape[0]):
-            res[i] = np.corrcoef(dm, sigma / dm ** br[i])[0, 1] ** 2
-    bbest = br[np.argmin(res)]
-    df['sigma_prime'] = sigma.values / dm.values ** bbest
-    df['new_mu'] = (dm.values ** (2 - 2 * bbest) / (df['sigma_prime'].values ** 2)) - 4
+        res[i] = np.corrcoef(dm, sigma / dm ** br[i])[0, 1] ** 2
+    bm = br[np.argmin(res)]
+    print(bm)
+    df['sigma_prime'] = sigma.values / dm.values ** bm
+    df['new_mu'] = (dm.values ** (2 - 2 * bm) / (df['sigma_prime'].values ** 2)) - 4
     return df
 
 
@@ -684,6 +687,7 @@ def main():
                     lwc=(["time", "diameter"], params['lwc'].to_numpy()),
                     lwc_cum=(["time"], params['lwc'].sum(1).to_numpy()),
                     mu=(["time"], params['mu'].to_numpy()[:, 0]),
+                    new_mu=(["time"], params['new_mu'].to_numpy()[:, 0]),
                     nw=(["time"], params['nw'].to_numpy()[:, 0]),
                     log10_nw=(["time"], np.log10(params['nw'].to_numpy()[:, 0])),
                     dm=(["time"], params['dm'].to_numpy()[:, 0]),
@@ -691,6 +695,7 @@ def main():
                     r=(["time"], params['r'].to_numpy()[:, 0]),
                     sigmasqr=(["time"], params['sigmasqr'].to_numpy()[:, 0]),
                     sigma=(["time"], params['sigma'].to_numpy()[:, 0]),
+                    sigmap=(["time"], params['sigma_prime'].to_numpy()[:, 0]),
                     temp=(["time"], df_merged['temp'].to_numpy()),
                     dew_point=(["time"], df_merged['dew_point'].to_numpy()),
                     altitude=(["time"], df_merged['altitude'].to_numpy()),
