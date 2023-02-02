@@ -377,9 +377,18 @@ def pds_parameters(nd, vel="lhermitte"):
     r = 6 * np.pi * 1e-4 * (nd.mul(1e6).mul(d ** 3).mul(d_d).mul(vel)).sum(1)
     sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6 * d ** 3 * d_d).sum(1) / (nd * 1e6 * d ** 3 * d_d).sum(1)
     sigma = np.sqrt(sigmasqr)
+    br = np.arange(0.5, 5.5, 0.001)
+    _res = np.zeros_like(br)
     mu = dm ** 2 / sigmasqr - 4
     _ = ['lwc', 'dm', 'nw', 'z', 'r', 'sigmasqr', 'sigma', 'mu']
-    return pd.concat([lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
+    df = pd.concat([lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
+    res = np.zeros_like(br)
+    for i in range(br.shape[0]):
+            res[i] = np.corrcoef(dm, sigma / dm ** br[i])[0, 1] ** 2
+    bbest = br[np.argmin(res)]
+    df['sigma_prime'] = sigma.values / dm.values ** bbest
+    df['new_mu'] = (dm.values ** (2 - 2 * bbest) / (df['sigma_prime'].values ** 2)) - 4
+    return df
 
 
 def _scatterer(diameters, ar, wl, j=0, rt=tmatrix.Scatterer.RADIUS_MAXIMUM, forward=True):
@@ -625,9 +634,9 @@ def main():
             ls_df = get_data(air, temp=2, sensors=['2DS10', 'HVPS', 'Hawk2DS10'])
             ls_df = fill_2ds(ls_df)
             hvps = area_filter([i for i in ls_df if i.attrs['instrument'] == 'HVPS'][0])
-            hvps = hvps[hvps.conc > 0.5]
+            hvps = hvps[hvps.twc > 0.05]
             ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
-            ls_df = [i[i.conc > 1] if i.attrs['instrument'] == '2DS10' else i for i in ls_df]
+            ls_df = [i[i.twc > 0.05] if i.attrs['instrument'] == '2DS10' else i for i in ls_df]
             ls_df = filter_by_cols(ls_df)
             instr = [i.attrs['instrument'] for i in ls_df]
             if _bef is True:
