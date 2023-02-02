@@ -59,6 +59,7 @@ app.layout = html.Div([
     [dash.dependencies.Input('zarr_file', 'value')])
 def update_graph(file):
     ds = xr.open_zarr(file)
+    ds = ds.where(ds.mu < 10)
     return {
         'data': [go.Scatter(
             x=ds.dm,
@@ -112,6 +113,8 @@ def create_time_series(date, xr_comb):
     y_comb = np.where(y_comb > 0, y_comb, np.nan)
     nd = norm_gamma(d=xr_comb.diameter / 1e3, dm=xr_comb.dm, mu=xr_comb.mu, nw=xr_comb.nw)
     nd = np.where(nd > 0, nd, np.nan)
+    nd_2 = norm_gamma(d=xr_comb.diameter / 1e3, dm=xr_comb.dm, mu=xr_comb.new_mu, nw=xr_comb.nw)
+    nd_2 = np.where(nd > 0, nd, np.nan)
     return {
         'data': [go.Scatter(
             x=x_2ds,
@@ -145,6 +148,14 @@ def create_time_series(date, xr_comb):
                 line_shape="vh",
                 name='Norm. Gamma',
                 line=dict(color='red', width=1)
+            ),
+            go.Scatter(
+                x=x_comb,
+                y=nd_2,
+                mode="lines",
+                line_shape="vh",
+                name='Norm. Gamma (new mu)',
+                line=dict(color='blue', width=1)
             )
         ],
         'layout': go.Layout(
@@ -156,7 +167,7 @@ def create_time_series(date, xr_comb):
                 'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
                 'text': f'{date}'},
                 {
-                'x': 0.5, 'y': 0.9, 'xanchor': 'left', 'yanchor': 'bottom',
+                'x': 0.3, 'y': 0.9, 'xanchor': 'left', 'yanchor': 'bottom',
                 'xref': 'paper', 'yref': 'paper', 'showarrow': False,
                 'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
                 'text': f'dm={xr_comb.dm.values:.2f}, mu={xr_comb.mu.values:.2f}, '

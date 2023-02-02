@@ -67,17 +67,19 @@ def dm_solver(xr_comb, mu=3):
 def dm_retrieval(dm1, dm2, xr_comb, mu=3, tol=0.00000001, maxiter=100):
     res = 1
     _iter = 0
+    ku_ka = objective_func(xr_comb.dm, xr_comb, xr_comb.mu).values
     while not (_iter > maxiter or tol > res):
-        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu).values
-        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu).values
-        f_diff = (fx2 - fx1) / (dm2 - dm1)
-        dm_new = dm1 - (fx1 / f_diff)
-        res = np.abs(dm_new-dm1)
+        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+        dm_new = dm1 - fx1 * (dm2 - dm1) / (fx2 - fx1)
+        res = np.abs(dm_new-dm2)
         if np.isnan(res):
             return np.nan
-        if dm2 > dm1:
-            dm2 = dm1
+        dm2 =dm1
         dm1 = dm_new
+        _iter += 1
+        print(_iter)
+    print(f'converged: {dm1}')
     return dm1
 
 
@@ -98,16 +100,15 @@ def dm_plt(dm1, dm2, xr_comb, mu=3, tol=0.00000001, maxiter=100):
     ax.plot(x, dm_plot, label='est')
     ax.plot(x, dm_plot2, label='real')
     ax.scatter(xr_comb.dm, dfr_ib)
+    ax.legend()
     while not (_iter > maxiter or tol > res):
-        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu).values
-        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu).values
-        f_diff = (fx2 - fx1) / (dm2 - dm1)
-        dm_new = dm1 - (fx1 / f_diff)
-        res = np.abs(dm_new-dm1)
-        # if np.isnan(res):
-        #     return np.nan
-        if dm2 > dm1:
-            dm2 = dm1
+        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+        dm_new = dm1 - fx1 * (dm2 - dm1) / (fx2 - fx1)
+        res = np.abs(dm_new-dm2)
+        if np.isnan(res):
+            return np.nan
+        dm2 = dm1
         dm1 = dm_new
         dm_s.append(dm1)
         f_res.append(fx1)
@@ -117,7 +118,6 @@ def dm_plt(dm1, dm2, xr_comb, mu=3, tol=0.00000001, maxiter=100):
         ax.scatter(dm1, fx2, c='k', s=0.8, label='fx2')
         ax.set_xlabel('Dm')
         ax.set_ylabel(f'DFR ({(xr_comb.dbz_t_ku - xr_comb.dbz_t_ka).values:.2f}) - Ib-Ku + Ib-Ka')
-        ax.legend()
         # plt.show()
         print(1)
     return dm1
@@ -129,7 +129,7 @@ def rain_rate():
 
 
 def main():
-    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_300_1000_5_bins.zarr')
+    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_300_1000_5_bins_merged.zarr')
     xr_comb = xr_comb.isel(time=range(15, 25))
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
@@ -137,12 +137,12 @@ def main():
 
     # sol = dm_retrieval(dm1=0.5, dm2=4., xr_comb=xr_comb.isel(time=1), mu=xr_comb.isel(time=1).mu.values)
     # sol2 = brentq(objective_func, 0.5, 4., args=(xr_comb.isel(time=1), xr_comb.isel(time=1).mu.values))
-    dm_real = xr_comb.isel(time=0).dm.values
+    dm_real = xr_comb.isel(time=range(3)).dm.values
     # see convergence in plot
-    test_dm = dm_plt(dm1=0.1, dm2=0.5, xr_comb=xr_comb.isel(time=3), mu=xr_comb.isel(time=3).mu.values)
+    # test_dm = dm_plt(dm1=0.5, dm2=3.5, xr_comb=xr_comb.isel(time=6), mu=xr_comb.isel(time=6).mu.values)
 
     # multiple test
-    dm_sol = [dm_retrieval(dm1=0.5, dm2=4., xr_comb=i, mu=i.mu.values)
+    dm_sol = [dm_retrieval(dm1=0.5, dm2=3.5, xr_comb=i.load(), mu=i.mu.load())
               for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
 
     dm_sol_1 = [brentq(equ_fucnt, 0.5, 3, args=(i, 3))
