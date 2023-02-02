@@ -625,7 +625,7 @@ def main():
             ls_df = get_data(air, temp=2, sensors=['2DS10', 'HVPS', 'Hawk2DS10'])
             ls_df = fill_2ds(ls_df)
             hvps = area_filter([i for i in ls_df if i.attrs['instrument'] == 'HVPS'][0])
-            hvps = hvps[hvps.conc > 0.1]
+            hvps = hvps[hvps.conc > 0.5]
             ls_df = [hvps if i.attrs['instrument'] == 'HVPS' else i for i in ls_df]
             ls_df = [i[i.conc > 1] if i.attrs['instrument'] == '2DS10' else i for i in ls_df]
             ls_df = filter_by_cols(ls_df)
