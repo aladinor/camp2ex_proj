@@ -9,10 +9,12 @@ from re import split
 from dash import dcc
 from dash import html
 from scipy.special import gamma
+from numpy import arange
 
 app = dash.Dash()
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
+from src.pds_retrievals import eq_funct
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
@@ -20,10 +22,14 @@ path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 ds_files = glob.glob(f'{path_data}/cloud_probes/zarr/combined_psd_Lear*.zarr')
 ds_probes = glob.glob(f'{path_data}/cloud_probes/zarr/*Learjet.zarr')
 ds_probes = [i for i in ds_probes if i.replace("\\", '/').split('/')[-1].split('_')[0] in ['2DS10', 'HVPS']]
+dm = xr.open_zarr(f'{path_data}/cloud_probes/zarr/dm_estimation.zarr')
+_dm = arange(0.1, 4, 0.001)
+dms = xr.DataArray(data=_dm,
+                   dims=['dm'],
+                   coords=dict(dm=(['dm'], _dm)))
 
 app.layout = html.Div([
     html.Div([
-
         html.Div([
             dcc.Dropdown(
                 id='zarr_file',
@@ -48,9 +54,30 @@ app.layout = html.Div([
         style={'width': '48%', 'display': 'inline-block', 'padding': '0 20'}),
     html.Div([
         dcc.Graph(id='psd_series'),
-    ], style={'display': 'inline-block', 'width': '48%'}
+    ],
+        style={'display': 'inline-block', 'width': '48%'}
     ),
-
+    html.Div([
+        html.Div([
+            dcc.Dropdown(
+                id='dm_var',
+                options=[{'label': i.split('/')[-1], 'value': i} for i in list(dm.keys())],
+                value='dm_dfr'
+            ),
+        ],
+            style={'width': '49%', 'display': 'inline-block'}),
+    ]),
+    html.Div([
+        dcc.Graph(id='dm_dmest',
+                  hoverData={'points': [{'hovertext': '2019-09-07 2:31:52'}]}
+                  ),
+    ],
+        style={'display': 'inline-block', 'width': '48%'}),
+    html.Div([
+        dcc.Graph(id='dfr_ib'),
+    ],
+        style={'display': 'inline-block', 'width': '48%'},
+    ),
 ])
 
 
@@ -93,8 +120,45 @@ def update_graph(file):
     }
 
 
+@app.callback(
+    dash.dependencies.Output('dm_dmest', 'figure'),
+    [dash.dependencies.Input('dm_var', 'value')])
+def update_dm(_var):
+    print(1)
+    return {
+        'data': [go.Scatter(
+            x=dm.dm,
+            y=dm[_var],
+            hovertext=dm.time,
+            mode='markers',
+            marker={
+                'size': 8,
+                'opacity': 0.5,
+                'line': {'width': 0.5, 'color': 'white'},
+                'colorscale': 'jet',
+                'colorbar': dict(thickness=5, outlinewidth=0),
+                'cmin': -2,
+                'cmax': 10
+            },
+        )],
+        'layout': go.Layout(
+            xaxis={
+                'title': 'Dm (mm)',
+                'type': 'linear'
+            },
+            yaxis={
+                'title': 'Dm GPM',
+                'type': 'linear'
+            },
+            margin={'l': 40, 'b': 30, 't': 10, 'r': 0},
+            height=450,
+            hovermode='closest'
+        )
+    }
+
+
 def norm_gamma(d, nw, dm, mu):
-    return nw * (6 * (mu + 4) ** (mu + 4)) / (4 ** 4 * gamma(mu + 4)) * (d / dm) ** mu * np.exp(-(mu+4) * d / dm)
+    return nw * (6 * (mu + 4) ** (mu + 4)) / (4 ** 4 * gamma(mu + 4)) * (d / dm) ** mu * np.exp(-(mu + 4) * d / dm)
 
 
 def create_time_series(date, xr_comb):
@@ -167,25 +231,63 @@ def create_time_series(date, xr_comb):
                 'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
                 'text': f'{date}'},
                 {
-                'x': 0.3, 'y': 0.9, 'xanchor': 'left', 'yanchor': 'bottom',
-                'xref': 'paper', 'yref': 'paper', 'showarrow': False,
-                'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
-                'text': f'dm={xr_comb.dm.values:.2f}, mu={xr_comb.mu.values:.2f}, '
-                        f'log10(nw)={xr_comb.log10_nw.values:.2f}',
-            }]
+                    'x': 0.5, 'y': 0.9, 'xanchor': 'left', 'yanchor': 'bottom',
+                    'xref': 'paper', 'yref': 'paper', 'showarrow': False,
+                    'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
+                    'text': f'dm={xr_comb.dm.values:.2f}, mu={xr_comb.mu.values:.2f}, '
+                            f'log10(nw)={xr_comb.log10_nw.values:.2f}',
+                }]
         )
     }
 
 
 @app.callback(
     dash.dependencies.Output('psd_series', 'figure'),
-    [dash.dependencies.Input('dm_nw', 'hoverData'),
-     dash.dependencies.Input('zarr_file', 'value')
-     ])
+    [
+        # dash.dependencies.Input('dm_nw', 'hoverData'),
+        dash.dependencies.Input('dm_dmest', 'hoverData'),
+        dash.dependencies.Input('zarr_file', 'value'),
+    ])
 def update_y_timeseries(hoverData, file):
     date = hoverData['points'][0]['hovertext']
     xr_comb = xr.open_zarr(file).sel(time=date)
     return create_time_series(date, xr_comb)
+
+
+def dfr_plot(xr_comb):
+    dfr_ib = eq_funct(dm=dms, xr_comb=xr_comb, mu=xr_comb.mu)
+    return {
+        'data': [go.Scatter(
+            x=dfr_ib.dm,
+            y=dfr_ib.values,
+            mode="lines",
+            line=dict(width=2)
+        )
+        ],
+        'layout': go.Layout(
+            xaxis={
+                'title': 'Dm (mm)',
+                'type': 'linear'
+            },
+            yaxis={
+                'title': 'DFR - Ib(Ku) + Ib(Ka)',
+                'type': 'linear'
+            },
+        )
+    }
+
+
+@app.callback(
+    dash.dependencies.Output('dfr_ib', 'figure'),
+    [
+        # dash.dependencies.Input('dm_nw', 'hoverData'),
+        dash.dependencies.Input('dm_dmest', 'hoverData'),
+        dash.dependencies.Input('zarr_file', 'value'),
+    ])
+def update_dfr(hoverData, file):
+    date = hoverData['points'][0]['hovertext']
+    xr_comb = xr.open_zarr(file).sel(time=date)
+    return dfr_plot(xr_comb)
 
 
 app.css.append_css({
