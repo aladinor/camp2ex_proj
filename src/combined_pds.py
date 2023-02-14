@@ -630,7 +630,7 @@ def main():
     _bef = False
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
-        intervals = [300, 1000]
+        intervals = [600, 1000]
         for nbin in np.arange(1, 10, 1):
             _lower = intervals[0]
             _upper = intervals[-1]
@@ -678,6 +678,8 @@ def main():
                     dbz_t_ku=(["time"], 10 * np.log10(df_reflectivity['z_Ku'].sum(1))),
                     dbz_t_ka=(["time"], 10 * np.log10(df_reflectivity['z_Ka'].sum(1))),
                     dbz_t_w=(["time"], 10 * np.log10(df_reflectivity['z_W'].sum(1))),
+                    dfr=(["time"], 10 * np.log10(df_reflectivity['z_Ku'].sum(1)) -
+                         10 * np.log10(df_reflectivity['z_Ka'].sum(1))),
                     A_ku=(["time", "diameter"], df_reflectivity['A_Ku'].to_numpy()),
                     A_ka=(["time", "diameter"], df_reflectivity['A_Ka'].to_numpy()),
                     A_w=(["time", "diameter"], df_reflectivity['A_W'].to_numpy()),
