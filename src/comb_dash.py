@@ -144,11 +144,13 @@ def update_dm(_var):
         'layout': go.Layout(
             xaxis={
                 'title': 'Dm (mm)',
-                'type': 'linear'
+                'type': 'linear',
+                'range': [0, 5.]
             },
             yaxis={
                 'title': 'Dm GPM',
-                'type': 'linear'
+                'type': 'linear',
+                'range': [0, 5.]
             },
             margin={'l': 40, 'b': 30, 't': 10, 'r': 0},
             height=450,
@@ -231,11 +233,14 @@ def create_time_series(date, xr_comb):
                 'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
                 'text': f'{date}'},
                 {
-                    'x': 0.5, 'y': 0.9, 'xanchor': 'left', 'yanchor': 'bottom',
+                    'x': 0.65, 'y': 0.65, 'xanchor': 'left', 'yanchor': 'bottom',
                     'xref': 'paper', 'yref': 'paper', 'showarrow': False,
                     'align': 'left', 'bgcolor': 'rgba(255, 255, 255, 0.5)',
-                    'text': f'dm={xr_comb.dm.values:.2f}, mu={xr_comb.mu.values:.2f}, '
-                            f'log10(nw)={xr_comb.log10_nw.values:.2f}',
+                    'text': f'dm={xr_comb.dm.values:.2f}<br>mu={xr_comb.mu.values:.2f}<br>'
+                            f'log10(nw)={xr_comb.log10_nw.values:.2f}<br>'
+                            f'Z(Ku)={xr_comb.dbz_t_ku.values:.2f}<br>'
+                            f'Z(Ka)={xr_comb.dbz_t_ka.values:.2f}<br>'
+                            f'DFR={xr_comb.dbz_t_ku.values - xr_comb.dbz_t_ka.values:.2f}',
                 }]
         )
     }
