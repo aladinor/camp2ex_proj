@@ -8,6 +8,7 @@ import xarray as xr
 from scipy.constants import c
 from scipy.special import gamma
 from scipy.optimize import minimize, brentq, newton
+import pandas as pd
 from dask import delayed, compute
 from re import split
 
@@ -43,7 +44,7 @@ def objective_func(dm, xr_comb, mu=3):
     return ku - ka
 
 
-def equ_fucnt(dm, xr_comb, mu=3, dfr=None):
+def eq_funct(dm, xr_comb, mu=3, dfr=None):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
     ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
@@ -57,56 +58,64 @@ def equ_fucnt(dm, xr_comb, mu=3, dfr=None):
 
 def dm_solver(xr_comb, mu=3):
     dm_bounds = [[0.1, 3.5]]
-    dm_const = {'type': 'eq', 'fun': equ_fucnt, 'args': (xr_comb, mu)}
+    dm_const = {'type': 'eq', 'fun': eq_funct, 'args': (xr_comb, mu)}
     dm_0 = np.array([1.75])
     res = minimize(fun=objective_func, x0=dm_0, args=(xr_comb, mu), bounds=dm_bounds, constraints=dm_const, tol=1e-2,
                    options={'maxiter': 50})
     return xr.DataArray(res['x'], dims=['time'], coords=dict(time=(['time'], np.array([xr_comb.time.values]))))
 
 
-def dm_retrieval(dm1, dm2, xr_comb, mu=3, tol=0.00000001, maxiter=100):
-    res = 1
+def dm_retrieval(dm1, dm2, xr_comb, mu=3, tol=0.00001, maxiter=100):
     _iter = 0
     ku_ka = objective_func(xr_comb.dm, xr_comb, xr_comb.mu).values
-    while not (_iter > maxiter or tol > res):
-        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
-        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+    for i in range(maxiter):
+        fx1 = eq_funct(dm1, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+        fx2 = eq_funct(dm2, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
         dm_new = dm1 - fx1 * (dm2 - dm1) / (fx2 - fx1)
-        res = np.abs(dm_new-dm2)
-        if np.isnan(res):
+        diff = np.abs(dm_new-dm2)
+        if np.isnan(diff):
             return np.nan
         dm2 =dm1
         dm1 = dm_new
         _iter += 1
-        print(_iter)
-    print(f'converged: {dm1}')
-    return dm1
+        if tol > diff:
+            return dm1
 
 
 def dm_plt(dm1, dm2, xr_comb, mu=3, tol=0.00000001, maxiter=100):
-    res = 1
+    diff = 1
     _iter = 0
     dm_s = []
     f_res = []
     f_res2 = []
     x = np.arange(0.1, 5, 0.1)
     ku_ka = objective_func(xr_comb.dm, xr_comb, xr_comb.mu).values
-    dm_plot = np.array([equ_fucnt(i, xr_comb=xr_comb, mu=mu, dfr=ku_ka) for i in x])
-    dm_plot2 = np.array([equ_fucnt(i, xr_comb=xr_comb, mu=mu) for i in x])
+    dm_plot = np.array([eq_funct(i, xr_comb=xr_comb, mu=mu, dfr=ku_ka) for i in x])
+    dm_plot2 = np.array([eq_funct(i, xr_comb=xr_comb, mu=mu) for i in x])
     dfr = (xr_comb.dbz_t_ku - xr_comb.dbz_t_ka).values
 
     dfr_ib = dfr - ku_ka
     fig, ax = plt.subplots(dpi=180)
-    ax.plot(x, dm_plot, label='est')
-    ax.plot(x, dm_plot2, label='real')
-    ax.scatter(xr_comb.dm, dfr_ib)
+    ax.plot(x, dm_plot, c='orange', zorder=1)
+    ax.plot(x, dm_plot2, c='orange', zorder=1)
+    ax.scatter(xr_comb.dm, dfr_ib, label='True Dm', zorder=2)
+    ax.set_xlabel('Dm  (mm)')
+    ax.set_ylabel(f'DFR - Ib(Ku) + Ib(Ka) (dB)')
     ax.legend()
-    while not (_iter > maxiter or tol > res):
-        fx1 = equ_fucnt(dm1, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
-        fx2 = equ_fucnt(dm2, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+    title = f"{pd.to_datetime(xr_comb.time.values): %Y-%m-%d %X} - UTC"
+    fig.suptitle(title, fontsize=14, fontweight='bold', y=0.95)
+    ax.grid()
+    ax.text(3, 0, r'$D_m$' + f"={xr_comb.dm.values:.2f}")
+    ax.text(3, 0.6, r'$DFR$' + f"={ku_ka:.2f}")
+    ax.text(3, -0.6, r'$\mu$' + f"={xr_comb.mu.values:.2f}")
+    # plt.show()
+    print(1)
+    while not (_iter > maxiter or tol > diff):
+        fx1 = eq_funct(dm1, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
+        fx2 = eq_funct(dm2, xr_comb=xr_comb, mu=mu, dfr=ku_ka).values
         dm_new = dm1 - fx1 * (dm2 - dm1) / (fx2 - fx1)
-        res = np.abs(dm_new-dm2)
-        if np.isnan(res):
+        diff = np.abs(dm_new-dm2)
+        if np.isnan(diff):
             return np.nan
         dm2 = dm1
         dm1 = dm_new
@@ -114,12 +123,12 @@ def dm_plt(dm1, dm2, xr_comb, mu=3, tol=0.00000001, maxiter=100):
         f_res.append(fx1)
         f_res2.append(fx2)
         _iter += 1
-        ax.scatter(dm_new, fx1, c='b', s=0.8, label='fx1')
-        ax.scatter(dm1, fx2, c='k', s=0.8, label='fx2')
-        ax.set_xlabel('Dm')
-        ax.set_ylabel(f'DFR ({(xr_comb.dbz_t_ku - xr_comb.dbz_t_ka).values:.2f}) - Ib-Ku + Ib-Ka')
+        ax.scatter(dm_new, fx1, c='k', s=0.8, label='fx1', zorder=10)
+        # ax.scatter(dm1, fx2, c='k', s=0.8, label='fx2', zorder=10)
         # plt.show()
         print(1)
+    ax.text(3, -1.2, r'$D_{m_{est}}$' + f"={dm1:.2f}")
+    print(1)
     return dm1
 
 
@@ -134,83 +143,24 @@ def main():
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
     # individal test
-
-    # sol = dm_retrieval(dm1=0.5, dm2=4., xr_comb=xr_comb.isel(time=1), mu=xr_comb.isel(time=1).mu.values)
-    # sol2 = brentq(objective_func, 0.5, 4., args=(xr_comb.isel(time=1), xr_comb.isel(time=1).mu.values))
-    dm_real = xr_comb.isel(time=range(3)).dm.values
-    # see convergence in plot
-    # test_dm = dm_plt(dm1=0.5, dm2=3.5, xr_comb=xr_comb.isel(time=6), mu=xr_comb.isel(time=6).mu.values)
-
-    # multiple test
+    test_dm = dm_plt(dm1=0.5, dm2=3.5, xr_comb=xr_comb.isel(time=0), mu=xr_comb.isel(time=0).mu.values)
     dm_sol = [dm_retrieval(dm1=0.5, dm2=3.5, xr_comb=i.load(), mu=i.mu.load())
               for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
 
-    dm_sol_1 = [brentq(equ_fucnt, 0.5, 3, args=(i, 3))
-                        for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
-    # Solve for Dm using DFR
-    dm_real = xr_comb.dm.values
-    dfr = xr_comb.dbz_t_ka - xr_comb.dbz_t_ku
+    dm_gpm = [dm_retrieval(dm1=0.5, dm2=3.5, xr_comb=i.load(), mu=3)
+              for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")]
 
-    dm_sol = xr.concat([dm_solver(i, mu=3) for _, i in xr_comb.chunk(chunks={"time": 1}).groupby("time")], 'time')
+    xr_comb['dm_dfr'] = xr.DataArray(np.array(dm_sol),
+                                     dims=['time'],
+                                     coords=dict(time=(['time'], xr_comb.time.values)))
 
-    fig, ax = plt.subplots()
-    sc = ax.scatter(xr_comb.dm, dm_sol, c=xr_comb.r)
-    ax.set_ylabel('Dm GPM')
-    ax.set_xlabel('Dm Truth')
-    x = np.linspace(*ax.get_xlim())
-    ax.plot(x, x)
-    plt.colorbar(sc, label='R (mmhr-1)')
-    plt.savefig('../results/dm_est.png')
-    plt.show()
-    print(1)
+    xr_comb['dm_gpm'] = xr.DataArray(np.array(dm_gpm),
+                                     dims=['time'],
+                                     coords=dict(time=(['time'], xr_comb.time.values)))
 
-    # ib_ku_1 = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
-    # z = 10 * np.log10(nw * (ku_wvl ** 4 / (np.pi ** 5 * 0.93) * ib_ku_1)).values
-
-    ib_ku_gpm = integral(dm=dm_sol, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=3, band="Ku")
-    ib_ka_gpm = integral(dm=dm_sol, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=xr_comb.mu, band="Ka")
-
-    dfr_gpm = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka_gpm) /
-                            ((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku_gpm))
-
-    fig, ax = plt.subplots()
-    sc = ax.scatter(dfr, dfr_gpm, c=xr_comb.r)
-    ax.set_ylabel('DFR GPM')
-    ax.set_xlabel('DFR Measured')
-    x = np.linspace(*ax.get_xlim())
-    ax.plot(x, x)
-    plt.colorbar(sc, label='R (mmhr-1)')
-    plt.savefig('../results/dm_gpm.png')
-    plt.show()
-    print(1)
-
-    ib_ku = integral(dm=xr_comb.dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=xr_comb.mu, band="Ku")
-    ib_ka = integral(dm=xr_comb.dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=xr_comb.mu, band="Ka")
-    dfr_cal = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka) /
-                            ((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
-    fig, ax = plt.subplots()
-    sc = ax.scatter(dfr, dfr_cal, c=xr_comb.r)
-    ax.set_ylabel('DFR Calculated')
-    ax.set_xlabel('DFR Measured')
-    x = np.linspace(*ax.get_xlim())
-    ax.plot(x, x)
-    plt.colorbar(sc, label='R (mmhr-1)')
-    plt.savefig('../results/dfr_est.png')
-    plt.show()
-    print(1)
-
-    log10_nw_GPM = xr_comb.dbz_t_ku - 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku_gpm))
-    fig, ax = plt.subplots()
-    sc = ax.scatter(xr_comb.log10_nw, log10_nw_GPM/10, c=xr_comb.r)
-    ax.set_ylabel('log10(Nw) GPM')
-    ax.set_xlabel('log10(Nw) Truth')
-    x = np.linspace(*ax.get_xlim())
-    ax.plot(x, x)
-    plt.colorbar(sc, label='R (mmhr-1)')
-    plt.savefig('../results/nw_gpm.png')
-    plt.show()
-    print(1)
-    pass
+    path_save = f"{path_data}/cloud_probes/zarr"
+    _ = xr_comb[['dm', 'dm_dfr', 'dm_gpm']].to_zarr(f'{path_save}/dm_estimation.zarr', consolidated=True)
+    print('done')
 
 
 if __name__ == '__main__':
