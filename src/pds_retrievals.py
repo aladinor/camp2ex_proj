@@ -92,15 +92,16 @@ def dm_retrieval(ds):
 
 
 def main():
-    xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_600_1000_5_bins_merged.zarr')
-    xr_comb = xr_comb.where(xr_comb.dfr > -0.5, drop=True)
-    dm = dm_retrieval(xr_comb)
-    save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved.zarr'
-    try:
-        _ = dm.to_zarr(save_path, consolidated=True)
-    except ContainsGroupError:
-        rmtree(save_path)
-        _ = dm.to_zarr(save_path, consolidated=True)
+    for i in ['Lear', 'P3B']:
+        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
+        xr_comb = xr_comb.where(xr_comb.dfr > -0.5, drop=True)
+        dm = dm_retrieval(xr_comb)
+        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}.zarr'
+        try:
+            _ = dm.to_zarr(save_path, consolidated=True)
+        except ContainsGroupError:
+            rmtree(save_path)
+            _ = dm.to_zarr(save_path, consolidated=True)
 
 
 if __name__ == '__main__':
