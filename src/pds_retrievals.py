@@ -77,22 +77,21 @@ def dm_retrieval(ds):
     # dm - DFR
     rest = eq_funct(dms, ds, mu=ds.mu, dfr=ds.dfr)
     rest = rest.to_dataset(name='dms_dfr')
-    dm_idx = dm_filt(rest.chunk(dict(time=1)).load())
+    dm_idx = dm_filt(rest.load())
     rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
     # dm - DFR(mu, dm)
     dfr = dfr_norm(ds.dm, ds, ds.mu)
     rest2 = eq_funct(dms, ds, mu=ds.mu, dfr=dfr)
     rest['dms_norm_dfr'] = (["time", 'dm'], rest2.values)
-    dm_idx2 = dm_filt(rest2.chunk(dict(time=1)).load())
+    dm_idx2 = dm_filt(rest2.load())
     rest['dm_rt_norm_dfr'] = (['time'], rest2.isel(dm=dm_idx2).dm.values)
-    rest['dfr'] = [['time'], ds.dfr.values]
-    rest['dfr_mudm'] = [['time'], dfr.values]
+    rest['dfr'] = (['time'], ds.dfr.values)
+    rest['dfr_mudm'] = (['time'], dfr.values)
+    rest['dm_true'] = (['time'], ds.dm.values)
     return rest
 
 
 def main():
-    import time
-    now = time.time.now()
     xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_Lear_600_1000_5_bins_merged.zarr')
     xr_comb = xr_comb.where(xr_comb.dfr > -0.5, drop=True)
     dm = dm_retrieval(xr_comb)

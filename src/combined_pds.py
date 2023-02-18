@@ -388,7 +388,6 @@ def pds_parameters(nd, vel="lhermitte"):
     for i in range(br.shape[0]):
         res[i] = np.corrcoef(dm, sigma / dm ** br[i])[0, 1] ** 2
     bm = br[np.argmin(res)]
-    print(bm)
     df['sigma_prime'] = sigma.values / dm.values ** bm
     df['new_mu'] = (dm.values ** (2 - 2 * bm) / (df['sigma_prime'].values ** 2)) - 4
     return df
@@ -730,7 +729,6 @@ def main():
             else:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged.zarr"
             xr_merg.to_zarr(store=store, consolidated=True)
-            print(1)
 
 
 if __name__ == '__main__':
