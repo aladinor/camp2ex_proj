@@ -100,7 +100,7 @@ app.layout = html.Div([
      ])
 def update_graph(file, dfr_value):
     ds = xr.open_zarr(file)
-    ds = ds.where(ds.dfr > dfr_value)
+    ds = ds.where(ds.dfr > dfr_value).where(ds.mu < 10)
     return {
         'data': [go.Scatter(
             x=ds.dm,
@@ -151,10 +151,6 @@ def update_dm(_var, dfr_value):
                 'size': 8,
                 'opacity': 0.5,
                 'line': {'width': 0.5, 'color': 'white'},
-                'colorscale': 'jet',
-                'colorbar': dict(thickness=5, outlinewidth=0),
-                'cmin': -2,
-                'cmax': 10
             },
         )],
         'layout': go.Layout(
@@ -164,7 +160,7 @@ def update_dm(_var, dfr_value):
                 'range': [0, 5.]
             },
             yaxis={
-                'title': 'Dm GPM',
+                'title': 'Dm retrieved',
                 'type': 'linear',
                 'range': [0, 5.]
             },
@@ -319,4 +315,4 @@ app.css.append_css({
 })
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8056)
+    app.run_server(host='127.0.0.1', port=8055)
