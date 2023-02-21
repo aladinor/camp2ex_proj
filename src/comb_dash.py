@@ -22,7 +22,7 @@ path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
 ds_files = glob.glob(f'{path_data}/cloud_probes/zarr/combined_psd_Lear*.zarr')
 ds_probes = glob.glob(f'{path_data}/cloud_probes/zarr/*Learjet.zarr')
 ds_probes = [i for i in ds_probes if i.replace("\\", '/').split('/')[-1].split('_')[0] in ['2DS10', 'HVPS']]
-dm = xr.open_zarr(f'{path_data}/cloud_probes/zarr/dm_estimation.zarr')
+dm = xr.open_zarr(f'{path_data}/cloud_probes/zarr/dm_retrieved_Lear.zarr')
 _dm = arange(0.1, 4, 0.001)
 dms = xr.DataArray(data=_dm,
                    dims=['dm'],
@@ -127,7 +127,7 @@ def update_dm(_var):
     print(1)
     return {
         'data': [go.Scatter(
-            x=dm.dm,
+            x=dm.dm_true,
             y=dm[_var],
             hovertext=dm.time,
             mode='markers',
