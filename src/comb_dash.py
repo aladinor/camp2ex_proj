@@ -95,10 +95,12 @@ app.layout = html.Div([
 
 @app.callback(
     dash.dependencies.Output('dm_nw', 'figure'),
-    [dash.dependencies.Input('zarr_file', 'value')])
-def update_graph(file):
+    [dash.dependencies.Input('zarr_file', 'value'),
+     dash.dependencies.Input('dfr-slider', 'value')
+     ])
+def update_graph(file, dfr_value):
     ds = xr.open_zarr(file)
-    ds = ds.where(ds.mu < 10)
+    ds = ds.where(ds.dfr > dfr_value)
     return {
         'data': [go.Scatter(
             x=ds.dm,
@@ -273,7 +275,7 @@ def update_y_timeseries(hoverData, file):
     return create_time_series(date, xr_comb)
 
 
-def dfr_plot(date, dm_var,dfr_value):
+def dfr_plot(date, dm_var, dfr_value):
     dfr_ib = dm.where(dm.dfr > dfr_value).sel(time=date)[dm_var]
     return {
         'data': [go.Scatter(
@@ -302,7 +304,6 @@ def dfr_plot(date, dm_var,dfr_value):
         dash.dependencies.Input('dm_var', 'value'),
         dash.dependencies.Input('dm_dmest', 'hoverData'),
         dash.dependencies.Input('dfr-slider', 'value')
-        ,
     ])
 def update_dfr(dm_var, hoverData, dfr_value):
     date = hoverData['points'][0]['hovertext']
