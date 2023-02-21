@@ -37,11 +37,11 @@ def find_nearest(x, value=0.0):
     # return np.unravel_index(np.argmin(np.abs(x - value)), x.shape)[0]
 
 
-def eq_funct(dm, xr_comb, dfr, mu=3):
+def dfr_root(dm, d, d_d, dfr, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
-    ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
-    ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
+    ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
+    ib_ka = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
     ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
     return dfr - ku + ka
@@ -73,20 +73,27 @@ def dm_retrieval(ds):
                        dims=['dm'],
                        coords=dict(dm=(['dm'], dm)))
     # dm - DFR (N(D), sigma_b)
-    rest = eq_funct(dms, ds, mu=ds.mu, dfr=ds.dfr)
+    rest = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=ds.dfr)
     rest = rest.to_dataset(name='dms_dfr')
     dm_idx = dm_filt(rest.load())
     rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
 
     # dm - DFR(mu, dm)
-    dfr = dfr_norm(dm=ds.dm, d=ds.diameter,d_d=ds.d_d, mu=ds.mu)
-    rest2 = eq_funct(dms, ds, mu=ds.mu, dfr=dfr)
+    dfr = dfr_norm(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
+    rest2 = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr)
     rest['dms_norm_dfr'] = (["time", 'dm'], rest2.values)
     dm_idx2 = dm_filt(rest2.load())
     rest['dm_rt_norm_dfr'] = (['time'], rest2.isel(dm=dm_idx2).dm.values)
     rest['dfr'] = (['time'], ds.dfr.values)
     rest['dfr_mudm'] = (['time'], dfr.values)
     rest['dm_true'] = (['time'], ds.dm.values)
+
+    # dm - DFR    # dm - DFR(mu=3, dm)
+    dfr_mu = dfr_norm(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=3)
+    rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=3, dfr=dfr_mu)
+    rest['dms_mu_3'] = (["time", 'dm'], rest3.values)
+    dm_idx3 = dm_filt(rest3.load())
+    rest['dm_rt_dfr_mu_3'] = (['time'], rest3.isel(dm=dm_idx3).dm.values)
     return rest
 
 
