@@ -69,6 +69,10 @@ def dm_filt(da, dim='dm'):
 
 def dm_retrieval(ds):
     dm = np.arange(0.1, 4, 0.001)
+    mus = np.tile(3, ds.dfr.shape[0])
+    mus = xr.DataArray(data=mus,
+                       dims=['time'],
+                       coords=dict(time=(['time'], ds.time.values)))
     dms = xr.DataArray(data=dm,
                        dims=['dm'],
                        coords=dict(dm=(['dm'], dm)))
@@ -88,12 +92,18 @@ def dm_retrieval(ds):
     rest['dfr_mudm'] = (['time'], dfr.values)
     rest['dm_true'] = (['time'], ds.dm.values)
 
-    # dm - DFR    # dm - DFR(mu=3, dm)
-    dfr_mu = dfr_norm(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=3)
-    rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=3, dfr=dfr_mu)
+    # dm - DFR    # dm - DFR(mu=3, N(D), sigma_b)
+    rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
     rest['dms_mu_3'] = (["time", 'dm'], rest3.values)
     dm_idx3 = dm_filt(rest3.load())
     rest['dm_rt_dfr_mu_3'] = (['time'], rest3.isel(dm=dm_idx3).dm.values)
+
+    # dm - DFR    # dm - DFR(mu=3,dm, nw)
+    dfr_mu = dfr_norm(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
+    rest4 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_mu, mu=mus)
+    rest['dms_mu_3'] = (["time", 'dm'], rest4.values)
+    dm_idx4 = dm_filt(rest4.load())
+    rest['dm_rt_norm_dfr_mu_3'] = (['time'], rest4.isel(dm=dm_idx4).dm.values)
     return rest
 
 
