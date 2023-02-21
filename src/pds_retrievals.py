@@ -37,23 +37,21 @@ def find_nearest(x, value=0.0):
     # return np.unravel_index(np.argmin(np.abs(x - value)), x.shape)[0]
 
 
-def eq_funct(dm, xr_comb, mu=3, dfr=None):
+def eq_funct(dm, xr_comb, dfr, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
     ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
     ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
     ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
-    if dfr is None:
-        dfr = xr_comb.dbz_t_ku - xr_comb.dbz_t_ka
     return dfr - ku + ka
 
 
-def dfr_norm(dm, xr_comb, mu=3):
+def dfr_norm(dm, d, d_d, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
-    ib_ku = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ku")
-    ib_ka = integral(dm=dm, d=xr_comb.diameter / 1e3, dd=xr_comb.d_d / 1e3, mu=mu, band="Ka")
+    ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
+    ib_ka = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
     ka = 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
     return ku - ka
@@ -74,13 +72,14 @@ def dm_retrieval(ds):
     dms = xr.DataArray(data=dm,
                        dims=['dm'],
                        coords=dict(dm=(['dm'], dm)))
-    # dm - DFR
+    # dm - DFR (N(D), sigma_b)
     rest = eq_funct(dms, ds, mu=ds.mu, dfr=ds.dfr)
     rest = rest.to_dataset(name='dms_dfr')
     dm_idx = dm_filt(rest.load())
     rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
+
     # dm - DFR(mu, dm)
-    dfr = dfr_norm(ds.dm, ds, ds.mu)
+    dfr = dfr_norm(dm=ds.dm, d=ds.diameter,d_d=ds.d_d, mu=ds.mu)
     rest2 = eq_funct(dms, ds, mu=ds.mu, dfr=dfr)
     rest['dms_norm_dfr'] = (["time", 'dm'], rest2.values)
     dm_idx2 = dm_filt(rest2.load())
@@ -94,7 +93,6 @@ def dm_retrieval(ds):
 def main():
     for i in ['Lear', 'P3B']:
         xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
-        xr_comb = xr_comb.where(xr_comb.dfr > -0.5, drop=True)
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}.zarr'
         try:
