@@ -14,7 +14,6 @@ from numpy import arange
 app = dash.Dash()
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
-from src.pds_retrievals import eq_funct
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
@@ -61,15 +60,28 @@ app.layout = html.Div([
         html.Div([
             dcc.Dropdown(
                 id='dm_var',
-                options=[{'label': i.split('/')[-1], 'value': i} for i in list(dm.keys())],
-                value='dm_dfr'
+                options=[{'label': i.split('/')[-1], 'value': i} for i in list(dm.keys()) if i in
+                         ['dm_rt_norm_dfr', 'dm_rt_dfr']],
+                value='dm_rt_norm_dfr'
+            ),
+        ],
+            style={'width': '49%', 'display': 'inline-block'}),
+        html.Div([
+            dcc.Slider(
+                min=-0.8,
+                max=0.5,
+                step=0.01,
+                id='dfr-slider',
+                value=-0.8,
+                marks={-0.8: '-0.8', -0.5: '-0.5', -0.3: '-0.3', 0: '0', 0.3: '0.3', 0.5: '0.5'}
+
             ),
         ],
             style={'width': '49%', 'display': 'inline-block'}),
     ]),
     html.Div([
         dcc.Graph(id='dm_dmest',
-                  hoverData={'points': [{'hovertext': '2019-09-07 2:31:52'}]}
+                  hoverData={'points': [{'hovertext': '2019-09-07 2:32:54'}]}
                   ),
     ],
         style={'display': 'inline-block', 'width': '48%'}),
@@ -122,13 +134,15 @@ def update_graph(file):
 
 @app.callback(
     dash.dependencies.Output('dm_dmest', 'figure'),
-    [dash.dependencies.Input('dm_var', 'value')])
-def update_dm(_var):
-    print(1)
+    [dash.dependencies.Input('dm_var', 'value'),
+     dash.dependencies.Input('dfr-slider', 'value')
+     ])
+def update_dm(_var, dfr_value):
+    dm_fil = dm.where(dm.dfr > dfr_value)
     return {
         'data': [go.Scatter(
-            x=dm.dm_true,
-            y=dm[_var],
+            x=dm_fil.dm_true,
+            y=dm_fil[_var],
             hovertext=dm.time,
             mode='markers',
             marker={
@@ -259,11 +273,11 @@ def update_y_timeseries(hoverData, file):
     return create_time_series(date, xr_comb)
 
 
-def dfr_plot(xr_comb):
-    dfr_ib = eq_funct(dm=dms, xr_comb=xr_comb, mu=xr_comb.mu)
+def dfr_plot(date, dm_var,dfr_value):
+    dfr_ib = dm.where(dm.dfr > dfr_value).sel(time=date)[dm_var]
     return {
         'data': [go.Scatter(
-            x=dfr_ib.dm,
+            x=dm.dm,
             y=dfr_ib.values,
             mode="lines",
             line=dict(width=2)
@@ -285,14 +299,18 @@ def dfr_plot(xr_comb):
 @app.callback(
     dash.dependencies.Output('dfr_ib', 'figure'),
     [
-        # dash.dependencies.Input('dm_nw', 'hoverData'),
+        dash.dependencies.Input('dm_var', 'value'),
         dash.dependencies.Input('dm_dmest', 'hoverData'),
-        dash.dependencies.Input('zarr_file', 'value'),
+        dash.dependencies.Input('dfr-slider', 'value')
+        ,
     ])
-def update_dfr(hoverData, file):
+def update_dfr(dm_var, hoverData, dfr_value):
     date = hoverData['points'][0]['hovertext']
-    xr_comb = xr.open_zarr(file).sel(time=date)
-    return dfr_plot(xr_comb)
+    if dm_var == 'dm_rt_norm_dfr':
+        dm_var = 'dms_norm_dfr'
+    else:
+        dm_var = 'dms_dfr'
+    return dfr_plot(date, dm_var, dfr_value)
 
 
 app.css.append_css({
@@ -300,4 +318,4 @@ app.css.append_css({
 })
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8055)
+    app.run_server(host='127.0.0.1', port=8056)
