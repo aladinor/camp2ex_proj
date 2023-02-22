@@ -18,6 +18,7 @@ from re import split
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
+from src.pds_retrievals import dfr_gamma
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
@@ -128,7 +129,6 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear', lower_lim
     cond1 = (df1.columns.mid >= comb_lower) & (df1.columns.mid <= comb_upper)
     cond2 = (df2.columns.mid >= comb_lower) & (df2.columns.mid <= comb_upper)
     cond1_merg = (df1.columns.mid >= ovr_lower) & (df1.columns.mid <= ovr_upp)
-    cond2_merg = (df2.columns.mid >= ovr_lower) & (df2.columns.mid <= ovr_upp)
     _nd_uppr = df1.iloc[:, cond1]
     _nd_lower = df2.iloc[:, cond2]
     instr = ['2DS10', 'HVPS']
@@ -177,180 +177,6 @@ def linear_wgt(df1, df2, ovr_upp=1200, ovr_lower=800, method='linear', lower_lim
         res.attrs['dsizes'] = d_d
         res.attrs['instrument'] = 'Composite_PSD'
         return res
-
-
-def linear_wgt2(df, intervals: list[int], method='snal'):
-    """
-
-    :type intervals: list
-    :param method: str. linear applies Leroy et al. 2014. swal Applies Snesbitt method
-    :param df: pd.DataFrame. concatenate pandas dataframe with level and keys eg (pd.concat([df_2ds, df_hvps]),
-               levels=['2DS10', 'HVPS'], keys=['2DS10', 'HVPS'], axis=1). This dataframe must contain time in rows and
-               in columns the diameters
-    :param intervals: overlapping intervals
-    :return: Combined PSD dataframe
-    """
-    _intervals = pd.IntervalIndex.from_breaks(intervals)
-    df_left = df['FCDP']
-    df_left.columns = df_left.attrs['FCDP']['intervals']
-    df_left = df_left[df_left.columns[1:]]  # discarding first bin
-    df_cent = df['2DS10']
-    df_cent.columns = df_cent.attrs['2DS10']['intervals']
-    df_cent = df_cent[df_cent.columns[1:]]  # discarding first bin
-    df_right = df['HVPS']
-    df_right.columns = df_right.attrs['HVPS']['intervals']
-    df_right = df_right[df_right.columns[1:]]  # discarding first bin
-
-    _left = df_left.iloc[:, df_left.columns.overlaps(_intervals[0])]
-    _cent_left = df_cent.iloc[:, df_cent.columns.overlaps(_intervals[0])]
-    _cent_right = df_cent.iloc[:, df_cent.columns.overlaps(_intervals[-1])]
-    _right = df_right.iloc[:, df_right.columns.overlaps(_intervals[-1])]
-    instr = ['FCDP', '2DS10_L', '2DS10_R', 'HVPS']
-
-    nd_overlap = pd.concat([_left.reindex(columns=np.arange(_left.columns.min().mid,
-                                                            _left.columns.max().right, 0.5)),
-                            _cent_left.reindex(columns=np.arange(_cent_left.columns.min().mid,
-                                                                 _cent_left.columns.max().right, 0.5)),
-                            _cent_right.reindex(columns=np.arange(_cent_right.columns.min().right,
-                                                                  _cent_right.columns.max().right, 1)),
-                            _right.reindex(columns=np.arange(_right.columns.min().mid,
-                                                             _right.columns.max().mid, 1))],
-                           axis=1, keys=instr, levels=[instr])
-
-    if method == 'linear':
-        _fcdp = nd_overlap['FCDP'] * (_intervals[0].right - nd_overlap['FCDP'].columns) / \
-                (_intervals[0].right - _intervals[0].left)
-
-        _2ds_l = nd_overlap['2DS10_L'] * (nd_overlap['2DS10_L'].columns - _intervals[0].left) / \
-                 (_intervals[0].right - _intervals[0].left)
-
-        _2ds_r = nd_overlap['2DS10_R'] * (_intervals[-1].right - nd_overlap['2DS10_R'].columns) / \
-                 (_intervals[-1].right - _intervals[-1].left)
-
-        _hvsp = nd_overlap['HVPS'] * (nd_overlap['HVPS'].columns - _intervals[-1].left) / \
-                (_intervals[-1].right - _intervals[-1].left)
-
-        res = pd.concat([_fcdp, _2ds_l, _2ds_r, _hvsp], axis=1, keys=['fcdp', '2ds_l', '2ds_s', 'hvps'],
-                        levels=[['fcdp', '2ds_l', '2ds_s', 'hvps']]).stack().sum(axis=1).unstack()
-
-        res = res.reindex(columns=df_left.columns[df_left.columns.overlaps(_intervals[0])].append(
-            df_cent.columns[df_cent.columns.overlaps(_intervals[-1])]).mid)
-        res.columns = df_left.columns[df_left.columns.overlaps(_intervals[0])].append(
-            df_cent.columns[df_cent.columns.overlaps(_intervals[-1])])
-        nd_res = pd.concat([df_left.iloc[:, ~df_left.columns.overlaps(_intervals[0])],
-                            res.iloc[:, res.columns.overlaps(_intervals[0])],
-                            df_cent.iloc[:, df_cent.columns.overlaps(_intervals[1])],
-                            res.iloc[:, res.columns.overlaps(_intervals[-1])],
-                            df_right.iloc[:, ~df_right.columns.overlaps(_intervals[-1])]],
-                           axis=1)
-
-        nd_res = nd_res[sorted(nd_res.columns)]
-        nd_res.attrs['intervals'] = nd_res.columns
-        d_d = {i.mid: i.length for i in nd_res.columns}
-        nd_res.columns = nd_res.columns.mid
-        nd_res.attrs['dsizes'] = d_d
-        return nd_res
-
-    elif 'snal':
-        _fcdp_2ds_0 = nd_overlap.stack()[(((nd_overlap.stack()['FCDP'] == 0) &
-                                           (nd_overlap.stack()['FCDP'].notnull())) &
-                                          ((nd_overlap.stack()['2DS10_L'] == 0) &
-                                           (nd_overlap.stack()['2DS10_L'].notnull())))]['FCDP'].unstack()
-
-        _fcdp_2ds_null = nd_overlap.stack()[(((nd_overlap.stack()['FCDP'] == 0) &
-                                              (nd_overlap.stack()['FCDP'].notnull())) &
-                                             (nd_overlap.stack()['2DS10_L'].isnull()))]['FCDP'].unstack()
-
-        _2ds_fcdp_null = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_L'] == 0) &
-                                              (nd_overlap.stack()['2DS10_L'].notnull())) &
-                                             (nd_overlap.stack()['FCDP'].isnull()))]['2DS10_L'].unstack()
-
-        _fcdp_2ds_fdcp = nd_overlap.stack()[(((nd_overlap.stack()['FCDP'] != 0) &
-                                              (nd_overlap.stack()['FCDP'].notnull())) &
-                                             ((nd_overlap.stack()['2DS10_L'] == 0) |
-                                              (nd_overlap.stack()['2DS10_L'].isnull())))]['FCDP'].unstack()
-
-        _2ds_fcdp_2ds = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_L'] != 0) &
-                                             (nd_overlap.stack()['2DS10_L'].notnull())) &
-                                            ((nd_overlap.stack()['FCDP'] == 0) |
-                                             (nd_overlap.stack()['FCDP'].isnull())))]['2DS10_L'].unstack()
-
-        _sfc_wt = nd_overlap.stack()[(((nd_overlap.stack()['FCDP'] != 0) &
-                                       (nd_overlap.stack()['FCDP'].notnull())) &
-                                      ((nd_overlap.stack()['2DS10_L'] != 0) & (
-                                          nd_overlap.stack()['2DS10_L'].notnull())))]
-
-        _sfc_wt['wt_fcdp'] = _sfc_wt['FCDP'] * (_intervals[0].right - _sfc_wt.index.get_level_values(1)) / \
-                             (_intervals[0].right - _intervals[0].left)
-
-        _sfc_wt['wt_2ds'] = _sfc_wt['2DS10_L'] * (_sfc_wt.index.get_level_values(1) - _intervals[0].left) / \
-                            (_intervals[0].right - _intervals[0].left)
-
-        _fcd_2ds = _sfc_wt[['wt_fcdp', 'wt_2ds']].sum(axis=1).unstack()
-
-        _res_left = pd.concat([_fcdp_2ds_0, _fcdp_2ds_null, _2ds_fcdp_null, _fcdp_2ds_fdcp, _2ds_fcdp_2ds, _fcd_2ds],
-                              axis=1, levels=[['_fcdp_2ds_0', '_fcdp_2ds_null', '_2ds_fcdp_null', '_fcdp_2ds_fdcp',
-                                               '_2ds_fcdp_2ds', '_fcd_2ds']],
-                              keys=['_fcdp_2ds_0', '_fcdp_2ds_null', '_2ds_fcdp_null', '_fcdp_2ds_fdcp',
-                                    '_2ds_fcdp_2ds', '_fcd_2ds']).stack().sum(axis=1).unstack()
-        _res_left = _res_left.reindex(columns=df_left.columns[df_left.columns.overlaps(_intervals[0])].mid)
-        _res_left.columns = df_left.columns[df_left.columns.overlaps(_intervals[0])]
-        _2ds_hvps_0 = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_R'] == 0) &
-                                           (nd_overlap.stack()['2DS10_R'].notnull())) &
-                                          ((nd_overlap.stack()['HVPS'] == 0) &
-                                           (nd_overlap.stack()['HVPS'].notnull())))]['2DS10_R'].unstack()
-
-        _2ds_hvps_null = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_R'] == 0) &
-                                              (nd_overlap.stack()['2DS10_R'].notnull())) &
-                                             (nd_overlap.stack()['HVPS'].isnull()))]['2DS10_R'].unstack()
-
-        _hvps_2ds_null = nd_overlap.stack()[(((nd_overlap.stack()['HVPS'] == 0) &
-                                              (nd_overlap.stack()['HVPS'].notnull())) &
-                                             (nd_overlap.stack()['2DS10_R'].isnull()))]['HVPS'].unstack()
-
-        _2ds_hvps_2ds = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_R'] != 0) &
-                                             (nd_overlap.stack()['2DS10_R'].notnull())) &
-                                            ((nd_overlap.stack()['HVPS'] == 0) |
-                                             (nd_overlap.stack()['HVPS'].isnull())))]['2DS10_R'].unstack()
-
-        _hvps_2ds_hvps = nd_overlap.stack()[(((nd_overlap.stack()['HVPS'] != 0) &
-                                              (nd_overlap.stack()['HVPS'].notnull())) &
-                                             ((nd_overlap.stack()['2DS10_R'] == 0) |
-                                              (nd_overlap.stack()['2DS10_R'].isnull())))]['HVPS'].unstack()
-
-        _sdd = nd_overlap.stack()[(((nd_overlap.stack()['2DS10_R'] != 0) &
-                                    (nd_overlap.stack()['2DS10_R'].notnull())) &
-                                   ((nd_overlap.stack()['HVPS'] != 0) &
-                                    (nd_overlap.stack()['HVPS'].notnull())))]
-
-        _sdd['2ds10_wgt'] = _sdd['2DS10_R'] * (_intervals[-1].right - _sdd.index.get_level_values(1)) / \
-                            (_intervals[-1].right - _intervals[1].left)
-        _sdd['hvps_wgt'] = _sdd['HVPS'] * (_sdd.index.get_level_values(1) - _intervals[-1].left) / \
-                           (_intervals[-1].right - _intervals[-1].left)
-        _sdd['nd_res'] = _sdd[['2ds10_wgt', 'hvps_wgt']].sum(1)
-
-        _sdd = _sdd['nd_res'].unstack()
-
-        res = pd.concat([_2ds_hvps_0, _hvps_2ds_null, _2ds_hvps_null, _2ds_hvps_2ds, _hvps_2ds_hvps, _sdd],
-                        axis=1, levels=[['_2ds_hvps_0', '_hvps_2ds_null', '_2ds_hvps_null', '_2ds_hvps_2ds',
-                                         '_hvps_2ds_hvps', '_sdd']],
-                        keys=['_2ds_hvps_0', '_hvps_2ds_null', '_2ds_hvps_null', '_2ds_hvps_2ds',
-                              '_hvps_2ds_hvps', '_sdd']).stack().sum(1).unstack()
-
-        res = res.reindex(columns=df_cent.columns[df_cent.columns.overlaps(_intervals[-1])].mid)
-        res.columns = df_cent.columns[df_cent.columns.overlaps(_intervals[-1])]
-
-        nd_res = pd.concat([df_left.iloc[:, ~df_left.columns.overlaps(_intervals[0])],
-                            _res_left,
-                            df_cent.iloc[:, df_cent.columns.overlaps(_intervals[1])],
-                            res,
-                            df_right.iloc[:, ~df_right.columns.overlaps(_intervals[-1])]], axis=1)
-        nd_res = nd_res.iloc[:, ~nd_res.columns.duplicated()]
-        d_d = {i.mid: i.length for i in nd_res.columns}
-        nd_res.columns = nd_res.columns.mid
-        nd_res.attrs['dsizes'] = d_d
-        nd_res.attrs['instrument'] = 'Composite_PSD'
-        return nd_res
 
 
 def pds_parameters(nd, vel="lhermitte"):
