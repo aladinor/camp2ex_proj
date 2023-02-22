@@ -48,7 +48,7 @@ def dfr_root(dm, d, d_d, dfr, mu=3):
     return dfr - ku + ka
 
 
-def dfr_norm(dm, d, d_d, mu=3):
+def dfr_gamma(dm, d, d_d, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
     ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
@@ -111,50 +111,71 @@ def dm_retrieval(ds):
     rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
 
     # dm - DFR(mu, dm)
-    dfr = dfr_norm(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
-    rest2 = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr)
-    rest['dms_norm_dfr'] = (["time", 'dm'], rest2.values)
+    dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
+    rest2 = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
+    rest['dms_dfr_gm'] = (["time", 'dm'], rest2.values)
     dm_idx2 = dm_filt(rest2.load())
-    rest['dm_rt_norm_dfr'] = (['time'], rest2.isel(dm=dm_idx2).dm.values)
+    rest['dm_rt_dfr_gm'] = (['time'], rest2.isel(dm=dm_idx2).dm.values)
+
     rest['dfr'] = (['time'], ds.dfr.values)
-    rest['dfr_mudm'] = (['time'], dfr.values)
+    rest['dfr_gm'] = (['time'], dfr_gm.values)
     rest['dm_true'] = (['time'], ds.dm.values)
 
-    # dm - DFR    # dm - DFR(mu=3, N(D), sigma_b)
-    rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
-    rest['dms_mu_3'] = (["time", 'dm'], rest3.values)
+    # dm - DFR    # dm - DFR(N(D), sigma_b)
+    rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=ds.mu)
+    rest['dms_dfr_nd'] = (["time", 'dm'], rest3.values)
     dm_idx3 = dm_filt(rest3.load())
-    rest['dm_rt_dfr_mu_3'] = (['time'], rest3.isel(dm=dm_idx3).dm.values)
+    rest['dm_rt_dfr_nd'] = (['time'], rest3.isel(dm=dm_idx3).dm.values)
 
     # dm - DFR    # dm - DFR(mu=3,dm, nw)
-    dfr_mu = dfr_norm(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
-    rest4 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_mu, mu=mus)
-    rest['dms_mu_3'] = (["time", 'dm'], rest4.values)
+    rest4 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_gm, mu=mus)
+    rest['dms_dfr_gm_mu_3'] = (["time", 'dm'], rest4.values)
     dm_idx4 = dm_filt(rest4.load())
-    rest['dm_rt_norm_dfr_mu_3'] = (['time'], rest4.isel(dm=dm_idx4).dm.values)
+    rest['dm_rt_dfr_gm_mu_3'] = (['time'], rest4.isel(dm=dm_idx4).dm.values)
+
+    # dm - DFR    # dm - DFR(mu=3,dm, nw)
+    rest5 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
+    rest['dms_dfr_nd_mu_3'] = (["time", 'dm'], rest5.values)
+    dm_idx4 = dm_filt(rest5.load())
+    rest['dm_rt_dfr_nd_mu_3'] = (['time'], rest5.isel(dm=dm_idx4).dm.values)
 
     log10nw_true = nw_retrieval(z=ds.dbz_t_ku, dm=ds.dm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
-    log10nw_est = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_norm_dfr, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
-    log10nw_gpm = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_gm = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_gm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_nd = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_nd, mu=mus, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_gm_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_gm_mu_3, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_nd_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_nd_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
+
     rest['log10nw_true'] = (['time'], log10nw_true.values)
-    rest['log10nw_est'] = (['time'], log10nw_est.values)
-    rest['log10nw_gpm'] = (['time'], log10nw_gpm.values)
+    rest['log10nw_dm_gm'] = (['time'], log10nw_dm_gm.values)
+    rest['log10nw_dm_nd'] = (['time'], log10nw_dm_nd.values)
+    rest['log10nw_dm_gm_mu_3'] = (['time'], log10nw_dm_gm_mu_3.values)
+    rest['log10nw_dm_nd_mu_3'] = (['time'], log10nw_dm_nd_mu_3.values)
 
     rain_true = rain_retrieval(nw=10 ** (log10nw_true / 10),
                                mu=ds.mu, dm=ds.dm,
                                d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
-    rain_est = rain_retrieval(nw=10 ** (log10nw_est / 10),
-                              mu=ds.mu, dm=rest.dm_rt_norm_dfr_mu_3,
-                              d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+    rain_dm_gm = rain_retrieval(nw=10 ** (log10nw_dm_gm / 10),
+                                mu=ds.mu, dm=rest.dm_rt_dfr_gm,
+                                d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
-    rain_gpm = rain_retrieval(nw=10 ** (log10nw_true / 10),
-                              mu=mus, dm=rest.dm_rt_dfr_mu_3,
-                              d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+    rain_dm_nd = rain_retrieval(nw=10 ** (log10nw_dm_nd / 10),
+                                mu=mus, dm=rest.dm_rt_dfr_nd,
+                                d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
+    rain_dm_gm_mu_3 = rain_retrieval(nw=10 ** (log10nw_dm_gm_mu_3 / 10),
+                                     mu=ds.mu, dm=rest.dm_rt_dfr_gm_mu_3,
+                                     d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
+    rain_dm_nd_mu_3 = rain_retrieval(nw=10 ** (log10nw_dm_nd_mu_3 / 10),
+                                     mu=mus, dm=rest.dm_rt_dfr_nd_mu_3,
+                                     d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
     rest['r_true'] = (['time'], rain_true.values)
-    rest['r_est'] = (['time'], rain_est.values)
-    rest['r_gpm'] = (['time'], rain_gpm.values)
+    rest['r_dm_gm'] = (['time'], rain_dm_gm.values)
+    rest['r_dm_nd'] = (['time'], rain_dm_nd.values)
+    rest['r_dm_gm_mu_3'] = (['time'], rain_dm_gm_mu_3.values)
+    rest['r_gpm'] = (['time'], rain_dm_nd_mu_3.values)
     return rest
 
 
