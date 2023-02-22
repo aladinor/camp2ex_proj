@@ -82,9 +82,14 @@ def nw_retrieval(z, dm, mu, d, d_d):
     return z - ib_cal(dm=dm, d=d, d_d=d_d, mu=mu)
 
 
+def fall_vel(d):
+    return 3.78 * d ** 0.67
+
+
 def rain_retrieval(nw, mu, dm, d, d_d):
     f_mu = (6 * (mu + 4) ** (mu + 4)) / (4 ** 4 * gamma(mu + 4))
-    r = 6 * np.pi * 1e-4 * (nw * f_mu * (d / dm) ** mu * np.exp(-(4 + mu) * (d / dm)) * d ** 3 * d_d)
+    vel = fall_vel(d)
+    r = 6 * np.pi * 1e-4 * (nw * f_mu * (d / dm) ** mu * np.exp(-(4 + mu) * (d / dm)) * vel * d ** 3 * d_d)
     return r.sum('diameter')
 
 
