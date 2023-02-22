@@ -9,6 +9,7 @@ from scipy.constants import c
 from scipy.special import gamma
 from zarr.errors import ContainsGroupError
 from re import split
+from typing import Callable
 
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -82,13 +83,14 @@ def nw_retrieval(z, dm, mu, d, d_d):
     return z - ib_cal(dm=dm, d=d, d_d=d_d, mu=mu)
 
 
-def fall_vel(d):
-    return 3.78 * d ** 0.67
-
-
-def rain_retrieval(nw, mu, dm, d, d_d):
+def rain_retrieval(nw, mu, dm, d, d_d, vel_m='lerm'):
+    lerm_vel: Callable[[float], float] = lambda diam: 9.25 * (1 - np.exp(-0.068 * diam ** 2 - 0.488 * diam))  # d in mm
+    ulbr_vel: Callable[[float], float] = lambda diam: 3.78 * diam ** 0.67  # with d in mm
+    if vel_m == 'lemr':
+        vel = lerm_vel(d)
+    else:
+        vel = ulbr_vel(d)
     f_mu = (6 * (mu + 4) ** (mu + 4)) / (4 ** 4 * gamma(mu + 4))
-    vel = fall_vel(d)
     r = 6 * np.pi * 1e-4 * (nw * f_mu * (d / dm) ** mu * np.exp(-(4 + mu) * (d / dm)) * vel * d ** 3 * d_d)
     return r.sum('diameter')
 
