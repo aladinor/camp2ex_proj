@@ -67,6 +67,27 @@ def dm_filt(da, dim='dm'):
     )
 
 
+def ib_cal(dm, mu, d, d_d, wv='Ku'):
+    ku_wvl = c / 14e9 * 1000
+    ka_wvl = c / 35e9 * 1000
+    ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
+    ib_ka = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ka")
+    if wv == 'Ku':
+        return 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
+    else:
+        return 10 * np.log10(((ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ka))
+
+
+def nw_retrieval(z, dm, mu, d, d_d):
+    return z - ib_cal(dm=dm, d=d, d_d=d_d, mu=mu)
+
+
+def rain_retrieval(nw, mu, dm, d, d_d):
+    f_mu = (6 * (mu + 4) ** (mu + 4)) / (4 ** 4 * gamma(mu + 4))
+    r = 6 * np.pi * 1e-4 * (nw * f_mu * (d / dm) ** mu * np.exp(-(4 + mu) * (d / dm)) * d ** 3 * d_d)
+    return r.sum('diameter')
+
+
 def dm_retrieval(ds):
     dm = np.arange(0.1, 4, 0.001)
     mus = np.tile(3, ds.dfr.shape[0])
@@ -104,6 +125,29 @@ def dm_retrieval(ds):
     rest['dms_mu_3'] = (["time", 'dm'], rest4.values)
     dm_idx4 = dm_filt(rest4.load())
     rest['dm_rt_norm_dfr_mu_3'] = (['time'], rest4.isel(dm=dm_idx4).dm.values)
+
+    log10nw_true = nw_retrieval(z=ds.dbz_t_ku, dm=ds.dm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
+    log10nw_est = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_norm_dfr, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
+    log10nw_gpm = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
+    rest['log10nw_true'] = (['time'], log10nw_true.values)
+    rest['log10nw_est'] = (['time'], log10nw_est.values)
+    rest['log10nw_gpm'] = (['time'], log10nw_gpm.values)
+
+    rain_true = rain_retrieval(nw=10 ** (log10nw_true / 10),
+                               mu=ds.mu, dm=ds.dm,
+                               d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
+    rain_est = rain_retrieval(nw=10 ** (log10nw_est / 10),
+                              mu=ds.mu, dm=rest.dm_rt_norm_dfr_mu_3,
+                              d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
+    rain_gpm = rain_retrieval(nw=10 ** (log10nw_true / 10),
+                              mu=mus, dm=rest.dm_rt_dfr_mu_3,
+                              d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
+    rest['r_true'] = (['time'], rain_true.values)
+    rest['r_est'] = (['time'], rain_est.values)
+    rest['r_gpm'] = (['time'], rain_gpm.values)
     return rest
 
 
