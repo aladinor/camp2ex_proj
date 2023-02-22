@@ -22,6 +22,7 @@ ds_files = glob.glob(f'{path_data}/cloud_probes/zarr/combined_psd_Lear*.zarr')
 ds_probes = glob.glob(f'{path_data}/cloud_probes/zarr/*Learjet.zarr')
 ds_probes = [i for i in ds_probes if i.replace("\\", '/').split('/')[-1].split('_')[0] in ['2DS10', 'HVPS']]
 dm = xr.open_zarr(f'{path_data}/cloud_probes/zarr/dm_retrieved_Lear.zarr')
+init_date = '2019-09-07 2:32:54'
 _dm = arange(0.1, 4, 0.001)
 dms = xr.DataArray(data=_dm,
                    dims=['dm'],
@@ -81,7 +82,7 @@ app.layout = html.Div([
     ]),
     html.Div([
         dcc.Graph(id='dm_dmest',
-                  hoverData={'points': [{'hovertext': '2019-09-07 2:32:54'}]}
+                  hoverData={'points': [{'hovertext': init_date}]}
                   ),
     ],
         style={'display': 'inline-block', 'width': '48%'}),
@@ -192,7 +193,7 @@ def create_time_series(date, xr_comb):
     nd = norm_gamma(d=xr_comb.diameter / 1e3, dm=xr_comb.dm, mu=xr_comb.mu, nw=xr_comb.nw)
     nd = np.where(nd > 0, nd, np.nan)
     nd_2 = norm_gamma(d=xr_comb.diameter / 1e3, dm=xr_comb.dm, mu=xr_comb.new_mu, nw=xr_comb.nw)
-    nd_2 = np.where(nd > 0, nd, np.nan)
+    nd_2 = np.where(nd > 0, nd_2, np.nan)
     return {
         'data': [go.Scatter(
             x=x_2ds,
@@ -261,12 +262,14 @@ def create_time_series(date, xr_comb):
 @app.callback(
     dash.dependencies.Output('psd_series', 'figure'),
     [
-        # dash.dependencies.Input('dm_nw', 'hoverData'),
-        dash.dependencies.Input('dm_dmest', 'hoverData'),
+        dash.dependencies.Input('dm_dmest', 'clickData'),
         dash.dependencies.Input('zarr_file', 'value'),
     ])
-def update_y_timeseries(hoverData, file):
-    date = hoverData['points'][0]['hovertext']
+def update_y_timeseries(clickData, file):
+    if clickData is None:
+        date = init_date
+    else:
+        date = clickData['points'][0]['hovertext']
     xr_comb = xr.open_zarr(file).sel(time=date)
     return create_time_series(date, xr_comb)
 
@@ -298,11 +301,14 @@ def dfr_plot(date, dm_var, dfr_value):
     dash.dependencies.Output('dfr_ib', 'figure'),
     [
         dash.dependencies.Input('dm_var', 'value'),
-        dash.dependencies.Input('dm_dmest', 'hoverData'),
+        dash.dependencies.Input('dm_dmest', 'clickData'),
         dash.dependencies.Input('dfr-slider', 'value')
     ])
-def update_dfr(dm_var, hoverData, dfr_value):
-    date = hoverData['points'][0]['hovertext']
+def update_dfr(dm_var, clickData, dfr_value):
+    if clickData is None:
+        date = init_date
+    else:
+        date = clickData['points'][0]['hovertext']
     if dm_var == 'dm_rt_norm_dfr':
         dm_var = 'dms_norm_dfr'
     else:
