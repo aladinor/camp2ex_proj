@@ -62,8 +62,8 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id='dm_var',
                 options=[{'label': i.split('/')[-1], 'value': i} for i in list(dm.keys()) if i in
-                         ['dm_rt_norm_dfr', 'dm_rt_dfr']],
-                value='dm_rt_norm_dfr'
+                         ['dm_rt_dfr_gm', 'dm_rt_dfr_nd']],
+                value='dm_rt_dfr_nd'
             ),
         ],
             style={'width': '49%', 'display': 'inline-block'}),
