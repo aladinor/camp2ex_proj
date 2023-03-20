@@ -253,7 +253,9 @@ def create_time_series(date, xr_comb):
                             f'log10(nw)={xr_comb.log10_nw.values:.2f}<br>'
                             f'Z(Ku)={xr_comb.dbz_t_ku.values:.2f}<br>'
                             f'Z(Ka)={xr_comb.dbz_t_ka.values:.2f}<br>'
-                            f'DFR={xr_comb.dbz_t_ku.values - xr_comb.dbz_t_ka.values:.2f}',
+                            f'DFR(ND)={xr_comb.dbz_t_ku.values - xr_comb.dbz_t_ka.values:.2f}<br>'
+                            f'DFR(GM)={dm.sel(time=date).dfr_gm.values:.2f}',
+
                 }]
         )
     }
@@ -321,4 +323,4 @@ app.css.append_css({
 })
 
 if __name__ == '__main__':
-    app.run_server(host='127.0.0.1', port=8055)
+    app.run_server(host='127.0.0.1', port=8056)
