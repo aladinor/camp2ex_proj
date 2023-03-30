@@ -180,10 +180,19 @@ def dm_retrieval(ds):
 
 
 def main():
-    for i in ['Lear', 'P3B']:
+    for i in ['Lear']:
         xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}.zarr'
+        try:
+            _ = dm.to_zarr(save_path, consolidated=True)
+        except ContainsGroupError:
+            rmtree(save_path)
+            _ = dm.to_zarr(save_path, consolidated=True)
+        # resampling to 5s
+        xr_res = xr_comb.resample(time='5S').mean()
+        dm = dm_retrieval(xr_res)
+        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_5s_res.zarr'
         try:
             _ = dm.to_zarr(save_path, consolidated=True)
         except ContainsGroupError:
