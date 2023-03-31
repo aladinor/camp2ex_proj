@@ -10,7 +10,7 @@ from scipy.special import gamma
 from zarr.errors import ContainsGroupError
 from re import split
 from typing import Callable
-
+from numba import float64, guvectorize, int64, jit
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
 from src.radar_utils import bck_extc_crss
@@ -35,7 +35,6 @@ def integral(dm, d, dd, mu=3, instrument='Composite_PSD', mie=False, band='Ku'):
 
 def find_nearest(x, value=0.0):
     return np.argmin(np.abs(x - value))
-    # return np.unravel_index(np.argmin(np.abs(x - value)), x.shape)[0]
 
 
 def dfr_root(dm, d, d_d, dfr, mu=3):
@@ -65,6 +64,7 @@ def dm_filt(da, dim='dm'):
         input_core_dims=[[dim]],
         kwargs=dict(value=0.),
         vectorize=True,
+        dask='Parallelized'
     )
 
 
@@ -104,19 +104,22 @@ def dm_retrieval(ds):
     dms = xr.DataArray(data=dm,
                        dims=['dm'],
                        coords=dict(dm=(['dm'], dm)))
+
     # dm - DFR (N(D), sigma_b)
     rest = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=ds.dfr)
     rest = rest.to_dataset(name='dms_dfr')
-    dm_idx = dm_filt(rest.load())
-    rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
+    # dm_idx = dm_filt(rest.load())
+    # rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
+    dm_idx = np.argmin(np.abs(rest.dms_dfr.data - 0.0), axis=1)
+    rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx).dm.values)
 
     # dm - DFR(mu, dm)
     dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
     rest2 = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
     rest['dms_dfr_gm'] = (["time", 'dm'], rest2.values)
-    dm_idx2 = dm_filt(rest2.load())
+    # dm_idx2 = dm_filt(rest2.load())
+    dm_idx2 = np.argmin(np.abs(rest2.data - 0.0), axis=1)
     rest['dm_rt_dfr_gm'] = (['time'], rest2.isel(dm=dm_idx2).dm.values)
-
     rest['dfr'] = (['time'], ds.dfr.values)
     rest['dfr_gm'] = (['time'], dfr_gm.values)
     rest['dm_true'] = (['time'], ds.dm.values)
@@ -124,20 +127,23 @@ def dm_retrieval(ds):
     # dm - DFR    # dm - DFR(N(D), sigma_b)
     rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=ds.mu)
     rest['dms_dfr_nd'] = (["time", 'dm'], rest3.values)
-    dm_idx3 = dm_filt(rest3.load())
+    # dm_idx3 = dm_filt(rest3.load())
+    dm_idx3 = np.argmin(np.abs(rest3.data - 0.0), axis=1)
     rest['dm_rt_dfr_nd'] = (['time'], rest3.isel(dm=dm_idx3).dm.values)
 
     # dm - DFR    # dm - DFR(mu=3,dm, nw)
     rest4 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_gm, mu=mus)
     rest['dms_dfr_gm_mu_3'] = (["time", 'dm'], rest4.values)
-    dm_idx4 = dm_filt(rest4.load())
+    # dm_idx4 = dm_filt(rest4.load())
+    dm_idx4 = np.argmin(np.abs(rest4.data - 0.0), axis=1)
     rest['dm_rt_dfr_gm_mu_3'] = (['time'], rest4.isel(dm=dm_idx4).dm.values)
 
     # dm - DFR    # dm - DFR(mu=3,dm, nw)
     rest5 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
     rest['dms_dfr_nd_mu_3'] = (["time", 'dm'], rest5.values)
-    dm_idx4 = dm_filt(rest5.load())
-    rest['dm_rt_dfr_nd_mu_3'] = (['time'], rest5.isel(dm=dm_idx4).dm.values)
+    # dm_idx5 = dm_filt(rest5.load())
+    dm_idx5 = np.argmin(np.abs(rest5.data - 0.0), axis=1)
+    rest['dm_rt_dfr_nd_mu_3'] = (['time'], rest5.isel(dm=dm_idx5).dm.values)
 
     log10nw_true = nw_retrieval(z=ds.dbz_t_ku, dm=ds.dm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
     log10nw_dm_gm = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_gm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
@@ -180,7 +186,7 @@ def dm_retrieval(ds):
 
 
 def main():
-    for i in ['Lear']:
+    for i in ['Lear', 'P3B']:
         xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}.zarr'
@@ -189,15 +195,16 @@ def main():
         except ContainsGroupError:
             rmtree(save_path)
             _ = dm.to_zarr(save_path, consolidated=True)
+        print('Done!!!')
         # resampling to 5s
-        xr_res = xr_comb.resample(time='5S').mean()
-        dm = dm_retrieval(xr_res)
-        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_5s_res.zarr'
-        try:
-            _ = dm.to_zarr(save_path, consolidated=True)
-        except ContainsGroupError:
-            rmtree(save_path)
-            _ = dm.to_zarr(save_path, consolidated=True)
+        # xr_res = xr_comb.resample(time='5S').mean()
+        # dm = dm_retrieval(xr_res)
+        # save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_5s_res.zarr'
+        # try:
+        #     _ = dm.to_zarr(save_path, consolidated=True)
+        # except ContainsGroupError:
+        #     rmtree(save_path)
+        #     _ = dm.to_zarr(save_path, consolidated=True)
 
 
 if __name__ == '__main__':
