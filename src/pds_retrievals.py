@@ -151,7 +151,8 @@ def dm_retrieval(ds):
     log10nw_dm_gm_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_gm_mu_3, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
     log10nw_dm_nd_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_nd_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
 
-    rest['log10nw_true'] = (['time'], log10nw_true.values)
+    rest['log10nw_true'] = (['time'], 10 * ds.log10_nw.values)
+    rest['log10nw_true_mu_dm'] = (['time'], log10nw_true.values)
     rest['log10nw_dm_gm'] = (['time'], log10nw_dm_gm.values)
     rest['log10nw_dm_nd'] = (['time'], log10nw_dm_nd.values)
     rest['log10nw_dm_gm_mu_3'] = (['time'], log10nw_dm_gm_mu_3.values)
@@ -177,7 +178,8 @@ def dm_retrieval(ds):
                                      mu=mus, dm=rest.dm_rt_dfr_nd_mu_3,
                                      d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
-    rest['r_true'] = (['time'], rain_true.values)
+    rest['r_true'] = (['time'], ds.r.values)
+    rest['r_true_nw_mu_dm'] = (['time'], rain_true.values)
     rest['r_dm_gm'] = (['time'], rain_dm_gm.values)
     rest['r_dm_nd'] = (['time'], rain_dm_nd.values)
     rest['r_dm_gm_mu_3'] = (['time'], rain_dm_gm_mu_3.values)
@@ -186,7 +188,7 @@ def dm_retrieval(ds):
 
 
 def main():
-    for i in ['Lear', 'P3B']:
+    for i in ['Lear']:
         xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}.zarr'
