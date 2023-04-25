@@ -198,6 +198,7 @@ def pds_parameters(nd, vel="lhermitte"):
     else:
         vel = ulbr_vel(d)
 
+    nt = nd.mul(1e6).mul(d_d).sum(1)
     lwc = nd.mul(1e6).mul(d ** 3).mul(d_d) * (np.pi / (6 * 1000))  # g / m3
     dm = nd.mul(1e6).mul(d ** 4).mul(d_d).sum(1) / nd.mul(1e6).mul(d ** 3).mul(d_d).sum(1)  # mm
     nw = 1e3 * (4 ** 4 / np.pi) * (lwc.sum(1) / dm ** 4)
@@ -208,13 +209,13 @@ def pds_parameters(nd, vel="lhermitte"):
     br = np.arange(0.5, 5.5, 0.001)
     _res = np.zeros_like(br)
     mu = dm ** 2 / sigmasqr - 4
-    _ = ['lwc', 'dm', 'nw', 'z', 'r', 'sigmasqr', 'sigma', 'mu']
-    df = pd.concat([lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
+    _ = ['nt', 'lwc', 'dm', 'nw', 'z', 'r', 'sigmasqr', 'sigma', 'mu']
+    df = pd.concat([nt, lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
     res = np.zeros_like(br)
     for i in range(br.shape[0]):
         res[i] = np.corrcoef(dm, sigma / dm ** br[i])[0, 1] ** 2
     bm = br[np.argmin(res)]
-    df['sigma_prime'] = sigma.values / dm.values ** bm
+    df['sigma_prime'] = sigma.values / (dm.values ** bm)
     df['new_mu'] = (dm.values ** (2 - 2 * bm) / (df['sigma_prime'].values ** 2)) - 4
     return df
 
@@ -511,6 +512,7 @@ def main():
                     Att_ku=(["time"], 10 * np.log10(df_reflectivity['A_Ku'].sum(1))),
                     Att_ka=(["time"], 10 * np.log10(df_reflectivity['A_Ka'].sum(1))),
                     Att_w=(["time"], 10 * np.log10(df_reflectivity['A_W'].sum(1))),
+                    nt=(["time"], params['nt'].to_numpy()[:, 0]),
                     lwc=(["time", "diameter"], params['lwc'].to_numpy()),
                     lwc_cum=(["time"], params['lwc'].sum(1).to_numpy()),
                     mu=(["time"], params['mu'].to_numpy()[:, 0]),
