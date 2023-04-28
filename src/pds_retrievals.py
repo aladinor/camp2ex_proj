@@ -10,7 +10,6 @@ from scipy.special import gamma
 from zarr.errors import ContainsGroupError
 from re import split
 from typing import Callable
-from numba import float64, guvectorize, int64, jit
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
 from src.radar_utils import bck_extc_crss
@@ -33,10 +32,6 @@ def integral(dm, d, dd, mu=3, instrument='Composite_PSD', mie=False, band='Ku'):
     return i_b.sum('diameter')
 
 
-def find_nearest(x, value=0.0):
-    return np.argmin(np.abs(x - value))
-
-
 def dfr_root(dm, d, d_d, dfr, mu=3):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
@@ -57,15 +52,33 @@ def dfr_gamma(dm, d, d_d, mu=3):
     return ku - ka
 
 
-def dm_filt(da, dim='dm'):
+def wrapper(dms, dm, ds):
     return xr.apply_ufunc(
-        find_nearest,
-        da,
-        input_core_dims=[[dim]],
-        kwargs=dict(value=0.),
+        root,
+        dms,
+        dm,
+        ds.dfr,
+        ds.dbz_t_ku,
+        input_core_dims=[['dm'], ['dm'], [], []],
         vectorize=True,
         dask='Parallelized'
     )
+
+
+def root(dms_dfr, dm, dfr, z_ku):
+    if (dfr < 0) & (z_ku < 10):
+        idxmax = np.argmax(dms_dfr)
+        dms = dms_dfr[:idxmax]
+        idmin = np.argmin(np.abs(dms - 0.0))
+        return dm[idmin]
+    elif (dfr < 0) & (z_ku > 20):
+        idxmax = np.argmax(dms_dfr)
+        dms = dms_dfr[idxmax:]
+        idmin = np.argmin(np.abs(dms - 0.0))
+        return dm[idmin + idxmax]
+    else:
+        idmin = np.argmin(np.abs(dms_dfr - 0.0))
+        return dm[idmin]
 
 
 def ib_cal(dm, mu, d, d_d, wv='Ku'):
@@ -96,7 +109,7 @@ def rain_retrieval(nw, mu, dm, d, d_d, vel_m='lerm'):
 
 
 def dm_retrieval(ds):
-    dm = np.arange(0.1, 4, 0.001)
+    dm = np.arange(0.01, 4, 0.001)
     mus = np.tile(3, ds.dfr.shape[0])
     mus = xr.DataArray(data=mus,
                        dims=['time'],
@@ -105,93 +118,76 @@ def dm_retrieval(ds):
                        dims=['dm'],
                        coords=dict(dm=(['dm'], dm)))
 
-    # dm - DFR (N(D), sigma_b)
-    rest = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=ds.dfr)
-    rest = rest.to_dataset(name='dms_dfr')
-    # dm_idx = dm_filt(rest.load())
-    # rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx.dms_dfr).dm.values)
-    dm_idx = np.argmin(np.abs(rest.dms_dfr.data - 0.0), axis=1)
-    rest['dm_rt_dfr'] = (['time'], rest.isel(dm=dm_idx).dm.values)
+    # dm - DFR (N(D), sigma_b) -  True values
+    dms_dfr = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=ds.dfr)
+    ds_sol = wrapper(dms=dms_dfr.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+    ds_sol = ds_sol.to_dataset(name='dm_rt_dfr_nd')
 
-    # dm - DFR(mu, dm)
+    # dm - DFR(mu, dm) gamma-shaped  -  True values
     dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
-    rest2 = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
-    rest['dms_dfr_gm'] = (["time", 'dm'], rest2.values)
-    # dm_idx2 = dm_filt(rest2.load())
-    dm_idx2 = np.argmin(np.abs(rest2.data - 0.0), axis=1)
-    rest['dm_rt_dfr_gm'] = (['time'], rest2.isel(dm=dm_idx2).dm.values)
-    rest['dfr'] = (['time'], ds.dfr.values)
-    rest['dfr_gm'] = (['time'], dfr_gm.values)
-    rest['dm_true'] = (['time'], ds.dm.values)
-
-    # dm - DFR    # dm - DFR(N(D), sigma_b)
-    rest3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=ds.mu)
-    rest['dms_dfr_nd'] = (["time", 'dm'], rest3.values)
-    # dm_idx3 = dm_filt(rest3.load())
-    dm_idx3 = np.argmin(np.abs(rest3.data - 0.0), axis=1)
-    rest['dm_rt_dfr_nd'] = (['time'], rest3.isel(dm=dm_idx3).dm.values)
+    dms_dfr_gamma = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
+    ds_sol['dm_rt_dfr_gm'] = wrapper(dms=dms_dfr_gamma.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
 
     # dm - DFR    # dm - DFR(mu=3,dm, nw)
-    rest4 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_gm, mu=mus)
-    rest['dms_dfr_gm_mu_3'] = (["time", 'dm'], rest4.values)
-    # dm_idx4 = dm_filt(rest4.load())
-    dm_idx4 = np.argmin(np.abs(rest4.data - 0.0), axis=1)
-    rest['dm_rt_dfr_gm_mu_3'] = (['time'], rest4.isel(dm=dm_idx4).dm.values)
+    dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_gm, mu=mus)
+    ds_sol['dm_rt_dfr_gm_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
 
     # dm - DFR    # dm - DFR(mu=3,dm, nw)
-    rest5 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
-    rest['dms_dfr_nd_mu_3'] = (["time", 'dm'], rest5.values)
-    # dm_idx5 = dm_filt(rest5.load())
-    dm_idx5 = np.argmin(np.abs(rest5.data - 0.0), axis=1)
-    rest['dm_rt_dfr_nd_mu_3'] = (['time'], rest5.isel(dm=dm_idx5).dm.values)
+    dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
+    ds_sol['dm_rt_dfr_nd_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+
+    # Adding aditional information from
+    ds_sol['dfr'] = (['time'], ds.dfr.values)
+    ds_sol['dfr_gm'] = (['time'], dfr_gm.values)
+    ds_sol['dm_true'] = (['time'], ds.dm.values)
 
     log10nw_true = nw_retrieval(z=ds.dbz_t_ku, dm=ds.dm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
-    log10nw_dm_gm = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_gm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
-    log10nw_dm_nd = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_nd, mu=mus, d=ds.diameter, d_d=ds.d_d)
-    log10nw_dm_gm_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_gm_mu_3, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
-    log10nw_dm_nd_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=rest.dm_rt_dfr_nd_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_gm = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_gm, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_nd = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_nd, mu=mus, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_gm_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_gm_mu_3, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
+    log10nw_dm_nd_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_nd_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
 
-    rest['log10nw_true'] = (['time'], 10 * ds.log10_nw.values)
-    rest['log10nw_true_mu_dm'] = (['time'], log10nw_true.values)
-    rest['log10nw_dm_gm'] = (['time'], log10nw_dm_gm.values)
-    rest['log10nw_dm_nd'] = (['time'], log10nw_dm_nd.values)
-    rest['log10nw_dm_gm_mu_3'] = (['time'], log10nw_dm_gm_mu_3.values)
-    rest['log10nw_dm_nd_mu_3'] = (['time'], log10nw_dm_nd_mu_3.values)
+    ds_sol['log10nw_true'] = (['time'], 10 * ds.log10_nw.values)
+    ds_sol['log10nw_true_mu_dm'] = (['time'], log10nw_true.values)
+    ds_sol['log10nw_dm_gm'] = (['time'], log10nw_dm_gm.values)
+    ds_sol['log10nw_dm_nd'] = (['time'], log10nw_dm_nd.values)
+    ds_sol['log10nw_dm_gm_mu_3'] = (['time'], log10nw_dm_gm_mu_3.values)
+    ds_sol['log10nw_dm_nd_mu_3'] = (['time'], log10nw_dm_nd_mu_3.values)
 
     rain_true = rain_retrieval(nw=10 ** (log10nw_true / 10),
                                mu=ds.mu, dm=ds.dm,
                                d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
     rain_dm_gm = rain_retrieval(nw=10 ** (log10nw_dm_gm / 10),
-                                mu=ds.mu, dm=rest.dm_rt_dfr_gm,
+                                mu=ds.mu, dm=ds_sol.dm_rt_dfr_gm,
                                 d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
     rain_dm_nd = rain_retrieval(nw=10 ** (log10nw_dm_nd / 10),
-                                mu=mus, dm=rest.dm_rt_dfr_nd,
+                                mu=mus, dm=ds_sol.dm_rt_dfr_nd,
                                 d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
     rain_dm_gm_mu_3 = rain_retrieval(nw=10 ** (log10nw_dm_gm_mu_3 / 10),
-                                     mu=ds.mu, dm=rest.dm_rt_dfr_gm_mu_3,
+                                     mu=ds.mu, dm=ds_sol.dm_rt_dfr_gm_mu_3,
                                      d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
     rain_dm_nd_mu_3 = rain_retrieval(nw=10 ** (log10nw_dm_nd_mu_3 / 10),
-                                     mu=mus, dm=rest.dm_rt_dfr_nd_mu_3,
+                                     mu=mus, dm=ds_sol.dm_rt_dfr_nd_mu_3,
                                      d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
-    rest['r_true'] = (['time'], ds.r.values)
-    rest['r_true_nw_mu_dm'] = (['time'], rain_true.values)
-    rest['r_dm_gm'] = (['time'], rain_dm_gm.values)
-    rest['r_dm_nd'] = (['time'], rain_dm_nd.values)
-    rest['r_dm_gm_mu_3'] = (['time'], rain_dm_gm_mu_3.values)
-    rest['r_gpm'] = (['time'], rain_dm_nd_mu_3.values)
-    return rest
+    ds_sol['r_true'] = (['time'], ds.r.values)
+    ds_sol['r_true_nw_mu_dm'] = (['time'], rain_true.values)
+    ds_sol['r_dm_gm'] = (['time'], rain_dm_gm.values)
+    ds_sol['r_dm_nd'] = (['time'], rain_dm_nd.values)
+    ds_sol['r_dm_gm_mu_3'] = (['time'], rain_dm_gm_mu_3.values)
+    ds_sol['r_gpm'] = (['time'], rain_dm_nd_mu_3.values)
+    return ds_sol
 
 
 def main():
     for i in ['Lear', 'P3B']:
         xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
         dm = dm_retrieval(xr_comb)
-        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}.zarr'
+        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr.zarr'
         try:
             _ = dm.to_zarr(save_path, consolidated=True)
         except ContainsGroupError:
