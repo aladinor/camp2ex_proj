@@ -66,19 +66,22 @@ def wrapper(dms, dm, ds):
 
 
 def root(dms_dfr, dm, dfr, z_ku):
-    if (dfr < 0) & (z_ku < 10):
-        idxmax = np.argmax(dms_dfr)
-        dms = dms_dfr[:idxmax]
-        idmin = np.argmin(np.abs(dms - 0.0))
-        return dm[idmin]
-    elif (dfr < 0) & (z_ku > 20):
-        idxmax = np.argmax(dms_dfr)
-        dms = dms_dfr[idxmax:]
-        idmin = np.argmin(np.abs(dms - 0.0))
-        return dm[idmin + idxmax]
-    else:
-        idmin = np.argmin(np.abs(dms_dfr - 0.0))
-        return dm[idmin]
+    try:
+        if (dfr < 0) & (z_ku < 10):
+            idxmax = np.argmax(dms_dfr)
+            dms = dms_dfr[:idxmax]
+            idmin = np.argmin(np.abs(dms - 0.0))
+            return dm[idmin]
+        elif (dfr < 0) & (z_ku > 20):
+            idxmax = np.argmax(dms_dfr)
+            dms = dms_dfr[idxmax:]
+            idmin = np.argmin(np.abs(dms - 0.0))
+            return dm[idmin + idxmax]
+        else:
+            idmin = np.argmin(np.abs(dms_dfr - 0.0))
+            return dm[idmin]
+    except ValueError:
+        return np.nan
 
 
 def ib_cal(dm, mu, d, d_d, wv='Ku'):
