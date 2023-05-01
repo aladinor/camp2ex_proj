@@ -552,11 +552,17 @@ def main():
                        'd_d': 'bin lenght in mm'
                        },
             )
+            xr_mean = xr_merg.rolling(time=5).mean()
+
             if _bef is True:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
+                store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_5s.zarr"
             else:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged.zarr"
+                store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
+
             xr_merg.to_zarr(store=store, consolidated=True)
+            xr_mean.to_zarr(store=store2, consolidated=True)
 
 
 if __name__ == '__main__':
