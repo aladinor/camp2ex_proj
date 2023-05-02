@@ -466,7 +466,7 @@ def filt_by_roll(df, roll=5):
 
 def main():
     _bef = False
-    aircraft = ['Learjet', 'P3B']
+    aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [600, 1000]
         for nbin in np.arange(1, 10, 1):
