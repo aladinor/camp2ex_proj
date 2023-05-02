@@ -188,9 +188,9 @@ def dm_retrieval(ds):
 
 def main():
     for i in ['Lear', 'P3B']:
-        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
+        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_1_bins_merged_5s.zarr')
         dm = dm_retrieval(xr_comb)
-        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr.zarr'
+        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_5s.zarr'
         try:
             _ = dm.to_zarr(save_path, consolidated=True)
         except ContainsGroupError:
