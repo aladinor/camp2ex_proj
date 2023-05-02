@@ -457,6 +457,7 @@ def filter_by_bins(df, nbins=10, dt=None):
 def filt_by_roll(df, roll=5):
     """
     Function that filters data out by plane roll.
+    :param df: pandas dataframe to be filtered
     :param roll: maximum roll angle. e.g. 5 deg
     filtered dataframe
     """
@@ -508,7 +509,7 @@ def main():
             df_merged = df_merged.join(df_add)
             ncols = 6
             if air == "P3B":
-                df_merged = filt_by_roll(df_merged)
+                df_merged = filt_by_roll(df_merged, roll=7)
                 df_reflectivity = df_reflectivity.loc[df_merged.index]
                 params = params.loc[df_merged.index]
                 ncols = 7
