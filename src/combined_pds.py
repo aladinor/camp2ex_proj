@@ -465,7 +465,7 @@ def filt_by_roll(df, roll=5):
 
 def main():
     _bef = False
-    aircraft = ['Lear', 'P3B']
+    aircraft = ['P3B']
     for air in aircraft:
         intervals = [600, 1000]
         for nbin in np.arange(1, 10, 1):
@@ -506,11 +506,15 @@ def main():
             df_add = get_add_data(air, indexx=indexx)
             d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
             df_merged = df_merged.join(df_add)
-            if aircraft == "P3B":
+            ncols = 6
+            if air == "P3B":
                 df_merged = filt_by_roll(df_merged)
+                df_reflectivity = df_reflectivity.loc[df_merged.index]
+                params = params.loc[df_merged.index]
+                ncols = 7
             xr_merg = xr.Dataset(
                 data_vars=dict(
-                    psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy()),
+                    psd=(["time", "diameter"], df_merged[df_merged.columns[:-ncols]].to_numpy()),
                     refl_ku=(["time", "diameter"], df_reflectivity['z_Ku'].to_numpy()),
                     refl_ka=(["time", "diameter"], df_reflectivity['z_Ka'].to_numpy()),
                     refl_w=(["time", "diameter"], df_reflectivity['z_W'].to_numpy()),
@@ -548,7 +552,7 @@ def main():
                 ),
                 coords=dict(
                     time=(["time"], np.array([i.to_datetime64() for i in df_merged.index])),
-                    diameter=(["diameter"], df_merged.columns[:-6])),
+                    diameter=(["diameter"], df_merged.columns[:-ncols])),
                 attrs={'combined_pds': 'units: # l um-1',
                        'diameter': 'units # mm',
                        'time': 'UTC',
