@@ -389,10 +389,12 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         df_add = pd.read_pickle(str_db)
         df_add = df_add.filter([' Total_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
                                 ' GPS_Altitude_YANG_MetNav', ' LWC_gm3_LAWSON',
-                                ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav'])
-        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
+                                ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav',
+                                ' Roll_Angle_YANG_MetNav'])
+        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH', 'roll']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
+        df_add.roll[df_add.roll > 180] = df_add.roll[df_add.roll > 180] - 360
         return df_add
 
 
@@ -452,6 +454,15 @@ def filter_by_bins(df, nbins=10, dt=None):
     return df
 
 
+def filt_by_roll(df, roll=5):
+    """
+    Function that filters data out by plane roll.
+    :param roll: maximum roll angle. e.g. 5 deg
+    filtered dataframe
+    """
+    return df[(df['roll'] > -roll) & (df['roll'] < roll)]
+
+
 def main():
     _bef = False
     aircraft = ['Lear', 'P3B']
@@ -481,7 +492,7 @@ def main():
                 if air == "Lear":
                     indexx = pd.date_range(start='2019-09-07 2:31:45', periods=150, tz='UTC', freq='S')  # for Lear
                 else:
-                    indexx = pd.date_range(start='2019-08-27 00:15', periods=120, tz='UTC', freq='S')  # for P3B
+                    indexx = pd.date_range(start='2019-08-27 00:15', periods=100000, tz='UTC', freq='S')  # for P3B
             else:
                 indexx = df_concat.index
 
@@ -495,6 +506,8 @@ def main():
             df_add = get_add_data(air, indexx=indexx)
             d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
             df_merged = df_merged.join(df_add)
+            if aircraft == "P3B":
+                df_merged = filt_by_roll(df_merged)
             xr_merg = xr.Dataset(
                 data_vars=dict(
                     psd=(["time", "diameter"], df_merged[df_merged.columns[:-6]].to_numpy()),
