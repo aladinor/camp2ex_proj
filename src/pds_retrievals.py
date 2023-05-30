@@ -9,6 +9,7 @@ from scipy.constants import c
 from scipy.special import gamma
 from zarr.errors import ContainsGroupError
 from re import split
+from pytmatrix import tmatrix_aux
 from typing import Callable
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini
@@ -32,9 +33,14 @@ def integral(dm, d, dd, mu=3, instrument='Composite_PSD', mie=False, band='Ku'):
     return i_b.sum('diameter')
 
 
-def dfr_root(dm, d, d_d, dfr, mu=3):
-    ku_wvl = c / 14e9 * 1000
-    ka_wvl = c / 35e9 * 1000
+def dfr_root(dm, d, d_d, dfr, mu=3, dataset='camp2ex'):
+    ku_wvl = tmatrix_aux.wl_Ku
+    ka_wvl = tmatrix_aux.wl_Ka
+    if mu is None:
+        if dataset == 'camp2ex':
+            mu = 5.95 * dm ** 0.468 - 4
+        else:
+            mu = 11.1 * dm ** -0.72 - 4
     ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
     ib_ka = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
@@ -43,8 +49,8 @@ def dfr_root(dm, d, d_d, dfr, mu=3):
 
 
 def dfr_gamma(dm, d, d_d, mu=3):
-    ku_wvl = c / 14e9 * 1000
-    ka_wvl = c / 35e9 * 1000
+    ku_wvl = tmatrix_aux.wl_Ku
+    ka_wvl = tmatrix_aux.wl_Ka
     ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
     ib_ka = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ka")
     ku = 10 * np.log10(((ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ib_ku))
@@ -85,8 +91,8 @@ def root(dms_dfr, dm, dfr, z_ku):
 
 
 def ib_cal(dm, mu, d, d_d, wv='Ku'):
-    ku_wvl = c / 14e9 * 1000
-    ka_wvl = c / 35e9 * 1000
+    ku_wvl = tmatrix_aux.wl_Ku
+    ka_wvl = tmatrix_aux.wl_Ka
     ib_ku = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ku")
     ib_ka = integral(dm=dm, d=d / 1e3, dd=d_d / 1e3, mu=mu, band="Ka")
     if wv == 'Ku':
@@ -139,6 +145,16 @@ def dm_retrieval(ds):
     dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
     ds_sol['dm_rt_dfr_nd_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
 
+    # dm - DFR using williams et al. 2014
+    dms_will = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=None, dataset='williams')
+    ds_sol['dm_williams'] = wrapper(dms_will.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+    ds_sol['mu_williams'] = 11.1 * ds_sol.dm_williams ** -0.72 - 4
+
+    # dm - DFR using camp2ex
+    dms_camp = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=None)
+    ds_sol['dm_camp'] = wrapper(dms_camp.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+    ds_sol['mu_camp'] = 5.98 * ds_sol.dm_camp ** 0.468 - 4
+
     # Adding aditional information from
     ds_sol['dfr'] = (['time'], ds.dfr.values)
     ds_sol['dfr_gm'] = (['time'], dfr_gm.values)
@@ -149,6 +165,8 @@ def dm_retrieval(ds):
     log10nw_dm_nd = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_nd, mu=mus, d=ds.diameter, d_d=ds.d_d)
     log10nw_dm_gm_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_gm_mu_3, mu=ds.mu, d=ds.diameter, d_d=ds.d_d)
     log10nw_dm_nd_mu_3 = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_rt_dfr_nd_mu_3, mu=mus, d=ds.diameter, d_d=ds.d_d)
+    log10nw_will = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_williams, mu=ds_sol.mu_williams, d=ds.diameter, d_d=ds.d_d)
+    log10nw_camp = nw_retrieval(z=ds.dbz_t_ku, dm=ds_sol.dm_camp, mu=ds_sol.mu_camp, d=ds.diameter, d_d=ds.d_d)
 
     ds_sol['log10nw_true'] = (['time'], 10 * ds.log10_nw.values)
     ds_sol['log10nw_true_mu_dm'] = (['time'], log10nw_true.values)
@@ -156,6 +174,8 @@ def dm_retrieval(ds):
     ds_sol['log10nw_dm_nd'] = (['time'], log10nw_dm_nd.values)
     ds_sol['log10nw_dm_gm_mu_3'] = (['time'], log10nw_dm_gm_mu_3.values)
     ds_sol['log10nw_dm_nd_mu_3'] = (['time'], log10nw_dm_nd_mu_3.values)
+    ds_sol['log10nw_will'] = (['time'], log10nw_will.values)
+    ds_sol['log10nw_camp'] = (['time'], log10nw_camp.values)
 
     rain_true = rain_retrieval(nw=10 ** (log10nw_true / 10),
                                mu=ds.mu, dm=ds.dm,
@@ -177,18 +197,36 @@ def dm_retrieval(ds):
                                      mu=mus, dm=ds_sol.dm_rt_dfr_nd_mu_3,
                                      d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
 
+    rain_will = rain_retrieval(nw=10 ** (log10nw_will / 10), mu=ds_sol.mu_williams, dm=ds_sol.dm_williams,
+                               d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
+    rain_camp = rain_retrieval(nw=10 ** (log10nw_camp / 10), mu=ds_sol.mu_camp, dm=ds_sol.dm_camp,
+                               d=ds.diameter / 1e3, d_d=ds.d_d / 1e3)
+
     ds_sol['r_true'] = (['time'], ds.r.values)
     ds_sol['r_true_nw_mu_dm'] = (['time'], rain_true.values)
     ds_sol['r_dm_gm'] = (['time'], rain_dm_gm.values)
     ds_sol['r_dm_nd'] = (['time'], rain_dm_nd.values)
     ds_sol['r_dm_gm_mu_3'] = (['time'], rain_dm_gm_mu_3.values)
     ds_sol['r_gpm'] = (['time'], rain_dm_nd_mu_3.values)
+    ds_sol['r_will'] = (['time'], rain_will.values)
+    ds_sol['r_camp'] = (['time'], rain_camp.values)
+    ds_sol['r_gpm_operational'] = 1.370 * 1 ** 4.258 * ds_sol.dm_rt_dfr_gm ** 5.420
     return ds_sol
 
 
 def main():
     for i in ['Lear', 'P3B']:
-        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_1_bins_merged_5s.zarr')
+        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
+        dm = dm_retrieval(xr_comb)
+        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr.zarr'
+        try:
+            _ = dm.to_zarr(save_path, consolidated=True)
+        except ContainsGroupError:
+            rmtree(save_path)
+            _ = dm.to_zarr(save_path, consolidated=True)
+
+        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged_5s.zarr')
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_5s.zarr'
         try:
@@ -197,15 +235,6 @@ def main():
             rmtree(save_path)
             _ = dm.to_zarr(save_path, consolidated=True)
         print('Done!!!')
-        # resampling to 5s
-        # xr_res = xr_comb.resample(time='5S').mean()
-        # dm = dm_retrieval(xr_res)
-        # save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_5s_res.zarr'
-        # try:
-        #     _ = dm.to_zarr(save_path, consolidated=True)
-        # except ContainsGroupError:
-        #     rmtree(save_path)
-        #     _ = dm.to_zarr(save_path, consolidated=True)
 
 
 if __name__ == '__main__':
