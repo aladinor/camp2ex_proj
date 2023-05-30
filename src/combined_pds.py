@@ -207,7 +207,6 @@ def pds_parameters(nd, vel="lhermitte"):
     sigmasqr = d.sub(dm, axis='rows').pow(2).mul(nd * 1e6 * d ** 3 * d_d).sum(1) / (nd * 1e6 * d ** 3 * d_d).sum(1)
     sigma = np.sqrt(sigmasqr)
     br = np.arange(0.5, 5.5, 0.001)
-    _res = np.zeros_like(br)
     mu = dm ** 2 / sigmasqr - 4
     _ = ['nt', 'lwc', 'dm', 'nw', 'z', 'r', 'sigmasqr', 'sigma', 'mu']
     df = pd.concat([nt, lwc, dm, nw, z, r, sigmasqr, sigma, mu], axis=1, keys=_, levels=[_])
@@ -216,7 +215,10 @@ def pds_parameters(nd, vel="lhermitte"):
         res[i] = np.corrcoef(dm, sigma / dm ** br[i])[0, 1] ** 2
     bm = br[np.argmin(res)]
     df['sigma_prime'] = sigma.values / (dm.values ** bm)
-    df['new_mu'] = (dm.values ** (2 - 2 * bm) / (df['sigma_prime'].values ** 2)) - 4
+    df['new_sigma'] = df['sigma_prime'].mean() * df['dm'] ** bm
+    df['new_mu'] = (dm.values ** (2 - 2 * bm) / (df['sigma_prime'].mean() ** 2)) - 4
+    df['mu_williams'] = 11.1 * df['dm'] ** (-0.72) - 4
+    df['mu_camp2ex'] = ((df['dm'] ** (2 - 2 * bm)) / (df['sigma_prime'].mean() ** 2)) - 4
     return df
 
 
@@ -543,6 +545,9 @@ def main():
                     sigmasqr=(["time"], params['sigmasqr'].to_numpy()[:, 0]),
                     sigma=(["time"], params['sigma'].to_numpy()[:, 0]),
                     sigmap=(["time"], params['sigma_prime'].to_numpy()),
+                    new_sigma=(["time"], params['new_sigma'].to_numpy()),
+                    mu_williams=(["time"], params["mu_williams"].to_numpy()),
+                    mu_camp2ex=(["time"], params["mu_camp2ex"].to_numpy()),
                     temp=(["time"], df_merged['temp'].to_numpy()),
                     dew_point=(["time"], df_merged['dew_point'].to_numpy()),
                     altitude=(["time"], df_merged['altitude'].to_numpy()),
