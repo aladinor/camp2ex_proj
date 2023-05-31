@@ -131,19 +131,19 @@ def dm_retrieval(ds):
     dms_dfr = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=ds.dfr)
     ds_sol = wrapper(dms=dms_dfr.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
     ds_sol = ds_sol.to_dataset(name='dm_rt_dfr_nd')
-    #
-    # # dm - DFR(mu, dm) gamma-shaped  -  True values
-    # dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
-    # dms_dfr_gamma = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
-    # ds_sol['dm_rt_dfr_gm'] = wrapper(dms=dms_dfr_gamma.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
-    #
-    # # dm - DFR    # dm - DFR(mu=3,dm, nw)
-    # dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_gm, mu=mus)
-    # ds_sol['dm_rt_dfr_gm_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
-    #
-    # # dm - DFR    # dm - DFR(mu=3,dm, nw)
-    # dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
-    # ds_sol['dm_rt_dfr_nd_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+
+    # dm - DFR(mu, dm) gamma-shaped  -  True values
+    dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
+    dms_dfr_gamma = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
+    ds_sol['dm_rt_dfr_gm'] = wrapper(dms=dms_dfr_gamma.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+
+    # dm - DFR    # dm - DFR(mu=3,dm, nw)
+    dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=dfr_gm, mu=mus)
+    ds_sol['dm_rt_dfr_gm_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
+
+    # dm - DFR    # dm - DFR(mu=3,dm, nw)
+    dms_dfr_mu_3 = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=mus)
+    ds_sol['dm_rt_dfr_nd_mu_3'] = wrapper(dms=dms_dfr_mu_3.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
 
     # dm - DFR using williams et al. 2014
     dms_will = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, dfr=ds.dfr, mu=None, dataset='williams')
