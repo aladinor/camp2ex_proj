@@ -502,7 +502,7 @@ def main():
             df_concat = df_concat[(df_concat.index >= f"{indexx.min()}") & (df_concat.index <= f"{indexx.max()}")]
             df_merged = linear_wgt(df_concat['2DS10'], df_concat['HVPS'], ovr_upp=intervals[-1], ovr_lower=intervals[0],
                                    method='snal')
-            df_merged = df_merged.replace(-9.99, np.nan)
+            df_merged[df_merged < 0] = np.nan
             if _bef is not True:
                 df_merged = filter_by_bins(df_merged, nbins=nbin, dt='Combined_PSD')
             df_reflectivity = radar_calc(df_merged, _upper=_upper, _lower=_lower)
