@@ -377,10 +377,10 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
     if aircraft == 'Lear':
         str_db = f'{path_par}/Page0_Learjet.pkl'
         df_add = pd.read_pickle(str_db)
-        df_add = df_add.filter(['Temp', 'Dew', 'Palt', 'NevLWC', 'VaV'])
+        df_add = df_add.filter(['Temp', 'Dew', 'Palt', 'NevLWC', 'VaV', "Lat", "Long"])
         df_add['RH'] = compute_hr(t=df_add['Temp'], td=df_add['Dew'])
         df_add['RH'] = df_add['RH'].where(df_add['RH'] <= 100, 100)
-        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH']
+        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'lat', 'lon', 'RH']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
         df_add = df_add[(df_add.index >= indexx.min().strftime('%Y-%m-%d %X')) &
@@ -392,11 +392,13 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
         df_add = df_add.filter([' Total_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
                                 ' GPS_Altitude_YANG_MetNav', ' LWC_gm3_LAWSON',
                                 ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav',
-                                ' Roll_Angle_YANG_MetNav'])
-        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH', 'roll']
+                                ' Roll_Angle_YANG_MetNav', ' Latitude_YANG_MetNav', ' Longitude_YANG_MetNav'])
+        cols = ['temp', 'dew_point', 'altitude', 'lwc', 'vertical_vel', 'RH', 'roll', 'lat', 'lon']
         new_cols = {j: cols[i] for i, j in enumerate(list(df_add.columns))}
         df_add.rename(columns=new_cols, inplace=True)
         df_add.roll[df_add.roll > 180] = df_add.roll[df_add.roll > 180] - 360
+        df_add = df_add[(df_add.index >= indexx.min().strftime('%Y-%m-%d %X')) &
+                        (df_add.index <= indexx.max().strftime('%Y-%m-%d %X'))]
         return df_add
 
 
@@ -468,7 +470,7 @@ def filt_by_roll(df, roll=5):
 
 def main():
     _bef = False
-    aircraft = ['Lear', 'P3B']
+    aircraft = ['P3B']
     for air in aircraft:
         intervals = [600, 1000]
         for nbin in np.arange(1, 10, 1):
@@ -512,12 +514,12 @@ def main():
             df_add = get_add_data(air, indexx=indexx)
             d_d = np.fromiter(df_merged.attrs['dsizes'].values(), dtype=float)
             df_merged = df_merged.join(df_add)
-            ncols = 6
+            ncols = 8
             if air == "P3B":
                 df_merged = filt_by_roll(df_merged, roll=7)
                 df_reflectivity = df_reflectivity.loc[df_merged.index]
                 params = params.loc[df_merged.index]
-                ncols = 7
+                ncols = 9
             xr_merg = xr.Dataset(
                 data_vars=dict(
                     psd=(["time", "diameter"], df_merged[df_merged.columns[:-ncols]].to_numpy()),
@@ -556,6 +558,8 @@ def main():
                     altitude=(["time"], df_merged['altitude'].to_numpy()),
                     lwc_plane=(["time"], df_merged['lwc'].to_numpy()),
                     vert_vel=(["time"], df_merged['vertical_vel'].to_numpy()),
+                    lat=(["time"], df_merged['lat'].to_numpy()),
+                    lon=(["time"], df_merged['lon'].to_numpy()),
                     RH=(["time"], df_merged['RH'].to_numpy()),
                     d_d=(["diameter"], d_d)
                 ),
