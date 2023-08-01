@@ -695,7 +695,7 @@ def main():
             xr_merg = xr_merg.merge(nw_ds)
 
             # retrieving mu using brute force
-            mu = np.arange(-4.5, 10, 0.01)
+            mu = np.arange(-3.5, 10, 0.01)
             mus = xr.DataArray(data=mu,
                                dims=['mu'],
                                coords=dict(mu=(['mu'], mu)))
