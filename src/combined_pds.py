@@ -466,9 +466,9 @@ def filt_by_roll(df, roll=5):
 
 
 def norm_gamma(d, nw, mu, dm):
-    f_mu = (6 * (4 + mu) ** (mu + 4)) / (4 ** 4 * gamma(mu.astype('float64') + 4))
+    f_mu = (6 * (4 + mu) ** (mu + 4)) / (4 ** 4 * gamma(mu.astype('float') + 4))
     slope = (4 + mu) / dm
-    return nw * f_mu * (d / dm) ** mu * np.exp((-slope * d).astype('float64'))
+    return nw * f_mu * (d / dm) ** mu * np.exp((-slope * d).astype('float'))
 
 
 def ref_gamma(ds_gm, prefix, d_d, _lower=600, _upper=1000, mie=False, instrument='Composite_PSD', onlyref=False):
@@ -672,6 +672,8 @@ def main():
                        'd_d': 'bin lenght in mm'
                        },
             )
+            # removing where mu is + inf
+            xr_merg = xr_merg.where(xr_merg.mu < 150, drop=True)
 
             # retrieving radar variables using mu using williams et al 2014 eq. 18
             nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=xr_merg.mu,
