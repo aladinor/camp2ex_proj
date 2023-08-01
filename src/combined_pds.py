@@ -4,8 +4,7 @@ import sys
 import os
 import glob
 from typing import Callable
-
-import matplotlib.pyplot as plt
+from scipy.special import gamma
 import numpy as np
 import pandas as pd
 from sqlalchemy.exc import OperationalError
@@ -15,10 +14,8 @@ from pytmatrix.scatter import ext_xsect
 from pymiecoated import Mie
 from scipy.constants import c
 from re import split
-
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
-from src.pds_retrievals import dfr_gamma
 
 location = split(', |_|-|!', os.popen('hostname').read())[0].replace("\n", "")
 path_data = get_pars_from_ini(file_name='loc')[location]['path_data']
@@ -448,7 +445,7 @@ def filter_by_bins(df, nbins=10, dt=None):
     df_ones = df_copy.replace([-9.99, 0], np.nan).notnull().astype(int)
     df_cum = df_ones.cumsum(1).replace(0, np.nan)
     _reset = -df_cum[df.replace([-9.99, 0], np.nan).isnull()].fillna(method='pad', axis=1). \
-                     diff(axis=1).replace(0, np.nan).fillna(df_cum)
+        diff(axis=1).replace(0, np.nan).fillna(df_cum)
     res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1)
     res = res[res > 0].max(axis=1)
     df['nbins'] = res
@@ -466,6 +463,99 @@ def filt_by_roll(df, roll=5):
     filtered dataframe
     """
     return df[(df['roll'] > -roll) & (df['roll'] < roll)]
+
+
+def norm_gamma(d, nw, mu, dm):
+    f_mu = (6 * (4 + mu) ** (mu + 4)) / (4 ** 4 * gamma(mu.astype(float) + 4))
+    slope = (4 + mu) / dm
+    return nw * f_mu * (d / dm) ** mu * np.exp((-slope * d).astype(float))
+
+
+def ref_gamma(ds_gm, prefix, d_d, _lower=600, _upper=1000, mie=False, instrument='Composite_PSD', onlyref=False):
+    try:
+        path_db = f'{path_data}/cloud_probes/db'
+        str_db = f"sqlite:///{path_db}/scattering_{_lower}_{_upper}.sqlite"
+        backscatter = pd.read_sql(f"{instrument}", con=str_db)
+    except (OperationalError, ValueError):
+        ar = np.ones_like(ds_gm.diameter.values)
+        backscatter = bck_extc_crss(ds_gm, instrument=instrument, _lower=_lower, _upper=_upper, ar=ar)
+
+    if len(ds_gm.diameter) != backscatter.shape[0]:
+        ar = np.ones_like(ds_gm)
+        backscatter = bck_extc_crss(ds_gm, instrument=instrument, _lower=_lower, _upper=_upper, ar=ar)
+
+    backscatter = backscatter.reset_index().drop(columns=['level_0', 'index']).\
+        assign(diameter=ds_gm.diameter).set_index('diameter').to_xarray()
+    dsizes = d_d / 1000
+    ku_wvl = c / 14e9 * 1000
+    ka_wvl = c / 35e9 * 1000
+    w_wvl = c / 95e9 * 1000
+    if mie:
+        z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ds_gm * backscatter['Mie_Ku'] * dsizes
+        z_ka = (ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ds_gm * backscatter['Mie_Ka'] * dsizes
+        z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * ds_gm * backscatter['Mie_W'] * dsizes
+    else:
+        z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * ds_gm * backscatter['T_mat_Ku'] * dsizes
+        z_ka = (ka_wvl ** 4 / (np.pi ** 5 * 0.93)) * ds_gm * backscatter['T_mat_Ka'] * dsizes
+        z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * ds_gm * backscatter['T_mat_W'] * dsizes
+    if onlyref:
+        return z_ku
+    else:
+        att_ku = (0.01 / np.log10(10)) * ds_gm * backscatter['Ku_extc'] * dsizes
+        att_ka = (0.01 / np.log10(10)) * ds_gm * backscatter['Ka_extc'] * dsizes
+        att_w = (0.01 / np.log10(10)) * ds_gm * backscatter['W_extc'] * dsizes
+        z_ku, z_ka, z_w = [10 * np.log10(i.sum('diameter').astype(float)) for i in [z_ku, z_ka, z_w]]
+        new_ds = z_ku.to_dataset(name=f'z_ku_{prefix}')
+        new_ds[f'z_ka_{prefix}'] = z_ka
+        new_ds[f'z_w_{prefix}'] = z_w
+        new_ds[f'att_ku_{prefix}'] = att_ku
+        new_ds[f'att_ka_{prefix}'] = att_ka
+        new_ds[f'att_w_{prefix}'] = att_w
+        new_ds[f'dfr_{prefix}'] = new_ds[f'att_ku_{prefix}'] - new_ds[f'att_ka_{prefix}']
+        return new_ds
+
+
+def radar_from_gamma(d, nw, dm, mu, d_d, prefix):
+    ng = norm_gamma(d / 1000,
+                    nw=nw,
+                    dm=dm,
+                    mu=mu)
+    return ref_gamma(ds_gm=ng, d_d=d_d, prefix=prefix)
+
+
+def mn(ds, n=0):
+    return ((ds.psd * 1e6) ** n * (ds.diameter / 1000) * ds.d_d).sum('diameter')
+
+
+def mu_retrieval(ds):
+    eta = (mn(ds, n=1) ** 2 / (mn(ds, 0) * mn(ds, 2)))
+    return 1 / (1 - eta) - 2
+
+
+def mu_root(ds, mus):
+    gm = norm_gamma(d=ds.diameter/1000, nw=ds.nw, dm=ds.dm, mu=mus)
+    z = ref_gamma(ds_gm=ds.psd * 1e6, prefix='test', d_d=ds.d_d, onlyref=True).sum('diameter')
+    z_bf = ref_gamma(ds_gm=gm, prefix='test', d_d=ds.d_d, onlyref=True).sum('diameter')
+    return np.abs(z - z_bf)
+
+
+def root(ref_diff, mus):
+    try:
+        idmin = np.nanargmin(np.abs(ref_diff - 0.0))
+        return mus[idmin]
+    except ValueError:
+        return np.nan
+
+
+def wrapper(ref_diff, mus):
+    return xr.apply_ufunc(
+        root,
+        ref_diff,
+        mus,
+        input_core_dims=[['mu'], ['mu']],
+        vectorize=True,
+        dask='Parallelized'
+    )
 
 
 def main():
@@ -582,8 +672,38 @@ def main():
                        'd_d': 'bin lenght in mm'
                        },
             )
-            xr_mean = xr_merg.rolling(time=5).mean()
 
+            # retrieving radar variables using mu using williams et al 2014 eq. 18
+            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=xr_merg.mu,
+                                     d_d=xr_merg.d_d, prefix='mu1')
+            xr_merg = xr_merg.merge(nw_ds)
+
+            # retrieving radar variables using mu using williams et al 2014 eq. 25
+            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=xr_merg.new_mu,
+                                     d_d=xr_merg.d_d, prefix='mu2')
+            xr_merg = xr_merg.merge(nw_ds)
+
+            # retrieving mu parameters using moments method ##M012
+            mu = mu_retrieval(xr_merg)
+            xr_merg['mu3'] = mu
+
+            # retrieving radar variables using mu using moment M012
+            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=mu,
+                                     d_d=xr_merg.d_d, prefix='mu3')
+            xr_merg = xr_merg.merge(nw_ds)
+
+            # retrieving mu using brute force
+            mu = np.arange(-4.5, 10, 0.01)
+            mus = xr.DataArray(data=mu,
+                               dims=['mu'],
+                               coords=dict(mu=(['mu'], mu)))
+            ref_diff = mu_root(xr_merg, mus)
+            mu_bf = wrapper(ref_diff.load(), mus)
+            xr_merg['mu_bf'] = mu_bf
+            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=mu_bf,
+                                     d_d=xr_merg.d_d, prefix='mu_bf')
+            xr_merg = xr_merg.merge(nw_ds)
+            xr_mean = xr_merg.rolling(time=5).mean()
             if _bef is True:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
                 store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_5s.zarr"
