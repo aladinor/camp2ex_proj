@@ -4,6 +4,7 @@ import sys
 import os
 import glob
 from typing import Callable
+import matplotlib.pyplot as plt
 from scipy.special import gamma
 import numpy as np
 import pandas as pd
@@ -534,9 +535,9 @@ def mu_retrieval(ds):
 
 def mu_root(ds, mus):
     gm = norm_gamma(d=ds.diameter/1000, nw=ds.nw, dm=ds.dm, mu=mus)
-    z = ref_gamma(ds_gm=ds.psd * 1e6, prefix='test', d_d=ds.d_d, onlyref=True).sum('diameter')
-    z_bf = ref_gamma(ds_gm=gm, prefix='test', d_d=ds.d_d, onlyref=True).sum('diameter')
-    return np.abs(z - z_bf)
+    y = ds.psd * 1e6
+    x = gm.astype(float)
+    return np.log10(y - x).sum('diameter')
 
 
 def root(ref_diff, mus):
@@ -695,7 +696,7 @@ def main():
             xr_merg = xr_merg.merge(nw_ds)
 
             # retrieving mu using brute force
-            mu = np.arange(-3.5, 10, 0.01)
+            mu = np.arange(-3.5, 10, 0.05)
             mus = xr.DataArray(data=mu,
                                dims=['mu'],
                                coords=dict(mu=(['mu'], mu)))
@@ -705,6 +706,7 @@ def main():
             nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=mu_bf,
                                      d_d=xr_merg.d_d, prefix='mu_bf')
             xr_merg = xr_merg.merge(nw_ds)
+
             if _bef is True:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
             else:
