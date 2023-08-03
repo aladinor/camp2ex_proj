@@ -4,7 +4,6 @@ import sys
 import os
 import glob
 from typing import Callable
-import matplotlib.pyplot as plt
 from scipy.special import gamma
 import numpy as np
 import pandas as pd
@@ -447,9 +446,9 @@ def filter_by_bins(df, nbins=10, dt=None):
     df_cum = df_ones.cumsum(1).replace(0, np.nan)
     _reset = -df_cum[df.replace([-9.99, 0], np.nan).isnull()].fillna(method='pad', axis=1). \
         diff(axis=1).replace(0, np.nan).fillna(df_cum)
-    res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1)
-    res = res[res > 0].max(axis=1)
-    df['nbins'] = res
+    res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1) # where counter rest
+    _max = res[res > 0].max(axis=1)
+    df['nbins'] = _max
     df = df[df['nbins'] >= nbins]
     df = df.drop(['nbins'], axis=1)
     del df_ones, df_cum, _reset, res, df_copy
@@ -537,7 +536,8 @@ def mu_root(ds, mus):
     gm = norm_gamma(d=ds.diameter/1000, nw=ds.nw, dm=ds.dm, mu=mus)
     y = ds.psd * 1e6
     x = gm.astype(float)
-    return np.log10(y - x).sum('diameter')
+    norm = (y - y.mean('diameter')) / y.std('diameter')
+    return (np.log10(y - x) / norm).sum('diameter')
 
 
 def root(ref_diff, mus):
@@ -560,7 +560,7 @@ def wrapper(ref_diff, mus):
 
 
 def main():
-    _bef = False
+    _bef = True
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [600, 1000]
