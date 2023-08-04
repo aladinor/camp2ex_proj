@@ -118,7 +118,7 @@ def rain_retrieval(nw, mu, dm, d, d_d, vel_m='lerm'):
 
 
 def dm_retrieval(ds):
-    dm = np.arange(0.01, 4, 0.001)
+    dm = np.arange(0.01, 4, 0.01)
     mus = np.tile(3, ds.dfr.shape[0])
     mus = xr.DataArray(data=mus,
                        dims=['time'],

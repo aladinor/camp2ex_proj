@@ -603,7 +603,7 @@ def adding_mus(ds):
 
 def main():
     _bef = True
-    aircraft = ['P3B']
+    aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [600, 1000]
         for nbin in np.arange(1, 10, 1):
