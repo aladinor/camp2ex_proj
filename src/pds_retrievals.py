@@ -222,7 +222,7 @@ def main():
             xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
             xr_comb2 = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged_5s.zarr')
             save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_merged.zarr'
-            save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_merged_5s.zarr'
+            save_path2 = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_merged_5s.zarr'
         else:
             xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins.zarr')
             xr_comb2 = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_5s.zarr')
