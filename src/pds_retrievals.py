@@ -128,13 +128,13 @@ def dm_retrieval(ds):
                        coords=dict(dm=(['dm'], dm)))
 
     # dm - DFR (N(D), sigma_b) -  True values
-    dms_dfr = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=ds.dfr)
+    dms_dfr = dfr_root(dms, d=ds.diameter, d_d=ds.d_d, mu=ds.new_mu, dfr=ds.dfr)
     ds_sol = wrapper(dms=dms_dfr.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
     ds_sol = ds_sol.to_dataset(name='dm_rt_dfr_nd')
 
     # dm - DFR(mu, dm) gamma-shaped  -  True values
-    dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.mu)
-    dms_dfr_gamma = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.mu, dfr=dfr_gm)
+    dfr_gm = dfr_gamma(dm=ds.dm, d=ds.diameter, d_d=ds.d_d, mu=ds.new_mu)
+    dms_dfr_gamma = dfr_root(dm=dms, d=ds.diameter, d_d=ds.d_d, mu=ds.new_mu, dfr=dfr_gm)
     ds_sol['dm_rt_dfr_gm'] = wrapper(dms=dms_dfr_gamma.load(), dm=dm, ds=ds[['dfr', 'dbz_t_ku']].load())
 
     # dm - DFR    # dm - DFR(mu=3,dm, nw)
@@ -217,7 +217,7 @@ def dm_retrieval(ds):
 
 def main():
     for i in ['Lear', 'P3B']:
-        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
+        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins.zarr')
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr.zarr'
         try:
@@ -226,7 +226,7 @@ def main():
             rmtree(save_path)
             _ = dm.to_zarr(save_path, consolidated=True)
 
-        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged_5s.zarr')
+        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_5s.zarr')
         dm = dm_retrieval(xr_comb)
         save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_5s.zarr'
         try:
