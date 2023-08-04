@@ -602,7 +602,7 @@ def adding_mus(ds):
 
 
 def main():
-    _bef = True
+    _bef = False
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [600, 1000]
@@ -725,7 +725,7 @@ def main():
                 xr_merg.to_zarr(store=store, consolidated=True)
                 xr_mean.to_zarr(store=store2, consolidated=True)
             else:
-                store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
+                store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged.zarr"
                 store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
                 xr_merg.to_zarr(store=store, consolidated=True)
                 xr_mean.to_zarr(store=store2, consolidated=True)

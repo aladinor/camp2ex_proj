@@ -216,24 +216,32 @@ def dm_retrieval(ds):
 
 
 def main():
+    merged = True  # for getting files filtered by bin after combining them
     for i in ['Lear', 'P3B']:
-        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins.zarr')
+        if merged:
+            xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged.zarr')
+            xr_comb2 = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_merged_5s.zarr')
+            save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_merged.zarr'
+            save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_merged_5s.zarr'
+        else:
+            xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins.zarr')
+            xr_comb2 = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_5s.zarr')
+            save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr.zarr'
+            save_path2 = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_5s.zarr'
+
         dm = dm_retrieval(xr_comb)
-        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr.zarr'
         try:
             _ = dm.to_zarr(save_path, consolidated=True)
         except ContainsGroupError:
             rmtree(save_path)
             _ = dm.to_zarr(save_path, consolidated=True)
 
-        xr_comb = xr.open_zarr(f'{path_data}/cloud_probes/zarr/combined_psd_{i}_600_1000_5_bins_5s.zarr')
-        dm = dm_retrieval(xr_comb)
-        save_path = f'{path_data}/cloud_probes/zarr/dm_retrieved_{i}_corr_5s.zarr'
+        dm = dm_retrieval(xr_comb2)
         try:
-            _ = dm.to_zarr(save_path, consolidated=True)
+            _ = dm.to_zarr(save_path2, consolidated=True)
         except ContainsGroupError:
-            rmtree(save_path)
-            _ = dm.to_zarr(save_path, consolidated=True)
+            rmtree(save_path2)
+            _ = dm.to_zarr(save_path2, consolidated=True)
         print('Done!!!')
 
 
