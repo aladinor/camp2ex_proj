@@ -561,7 +561,7 @@ def wrapper(ref_diff, mus):
 
 def main():
     _bef = True
-    aircraft = ['Lear', 'P3B']
+    aircraft = ['P3B']
     for air in aircraft:
         intervals = [600, 1000]
         for nbin in np.arange(1, 10, 1):
@@ -706,17 +706,28 @@ def main():
             nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=mu_bf,
                                      d_d=xr_merg.d_d, prefix='mu_bf')
             xr_merg = xr_merg.merge(nw_ds)
-            xr_mean = xr_merg.rolling(time=5).mean()
+
             if _bef is True:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
                 store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_5s.zarr"
                 xr_merg.to_zarr(store=store, consolidated=True)
-                xr_mean.to_zarr(store=store2, consolidated=True)
+                try:
+                    xr_mean = xr_merg.rolling(time=5).mean(skipna=True)
+                    xr_mean.to_zarr(store=store2, consolidated=True)
+                except ZeroDivisionError as e :
+                    print(e)
+                    pass
+
             else:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
                 store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
                 xr_merg.to_zarr(store=store, consolidated=True)
-                xr_mean.to_zarr(store=store2, consolidated=True)
+                try:
+                    xr_mean = xr_merg.rolling(time=5).mean(skipna=True)
+                    xr_mean.to_zarr(store=store2, consolidated=True)
+                except ZeroDivisionError as e:
+                    print(e)
+                    pass
 
             del xr_merg, xr_mean
             print(f'done {nbin}')
