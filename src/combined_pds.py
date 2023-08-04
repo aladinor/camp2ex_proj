@@ -528,7 +528,13 @@ def mn(ds, n=0):
 
 
 def mu_retrieval(ds):
-    eta = (mn(ds, n=1) ** 2 / (mn(ds, 0) * mn(ds, 2)))
+    try:
+        eta = (mn(ds, n=1) ** 2 / (mn(ds, 0) * mn(ds, 2)))
+    except ZeroDivisionError:
+        den = (mn(ds, 0) * mn(ds, 2))
+        den = den.where(den > 0)
+        den = den.astype(float).bfill('time')
+        eta = (mn(ds, n=1) ** 2 / den)
     return 1 / (1 - eta) - 2
 
 
@@ -557,6 +563,42 @@ def wrapper(ref_diff, mus):
         vectorize=True,
         dask='Parallelized'
     )
+
+
+def adding_mus(ds):
+    # removing where mu is + inf
+    ds = ds.where(ds.mu < 150, drop=True)
+
+    # retrieving radar variables using mu using williams et al 2014 eq. 18
+    nw_ds = radar_from_gamma(d=ds.diameter, dm=ds.dm, nw=ds.nw, mu=ds.mu,
+                             d_d=ds.d_d, prefix='mu1')
+    ds = ds.merge(nw_ds)
+
+    # retrieving radar variables using mu using williams et al 2014 eq. 25
+    nw_ds = radar_from_gamma(d=ds.diameter, dm=ds.dm, nw=ds.nw, mu=ds.new_mu,
+                             d_d=ds.d_d, prefix='mu2')
+    ds = ds.merge(nw_ds)
+
+    # retrieving mu parameters using moments method ##M012
+    mu = mu_retrieval(ds)
+    ds['mu3'] = mu
+
+    # retrieving radar variables using mu using moment M012
+    nw_ds = radar_from_gamma(d=ds.diameter, dm=ds.dm, nw=ds.nw, mu=mu,
+                             d_d=ds.d_d, prefix='mu3')
+    ds = ds.merge(nw_ds)
+
+    # retrieving mu using brute force
+    mu = np.arange(-3.5, 10, 0.05)
+    mus = xr.DataArray(data=mu,
+                       dims=['mu'],
+                       coords=dict(mu=(['mu'], mu)))
+    ref_diff = mu_root(ds, mus)
+    mu_bf = wrapper(ref_diff.load(), mus)
+    ds['mu_bf'] = mu_bf
+    nw_ds = radar_from_gamma(d=ds.diameter, dm=ds.dm, nw=ds.nw, mu=mu_bf,
+                             d_d=ds.d_d, prefix='mu_bf')
+    return ds.merge(nw_ds)
 
 
 def main():
@@ -673,61 +715,20 @@ def main():
                        'd_d': 'bin lenght in mm'
                        },
             )
-            # removing where mu is + inf
-            xr_merg = xr_merg.where(xr_merg.mu < 150, drop=True)
-
-            # retrieving radar variables using mu using williams et al 2014 eq. 18
-            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=xr_merg.mu,
-                                     d_d=xr_merg.d_d, prefix='mu1')
-            xr_merg = xr_merg.merge(nw_ds)
-
-            # retrieving radar variables using mu using williams et al 2014 eq. 25
-            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=xr_merg.new_mu,
-                                     d_d=xr_merg.d_d, prefix='mu2')
-            xr_merg = xr_merg.merge(nw_ds)
-
-            # retrieving mu parameters using moments method ##M012
-            mu = mu_retrieval(xr_merg)
-            xr_merg['mu3'] = mu
-
-            # retrieving radar variables using mu using moment M012
-            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=mu,
-                                     d_d=xr_merg.d_d, prefix='mu3')
-            xr_merg = xr_merg.merge(nw_ds)
-
-            # retrieving mu using brute force
-            mu = np.arange(-3.5, 10, 0.05)
-            mus = xr.DataArray(data=mu,
-                               dims=['mu'],
-                               coords=dict(mu=(['mu'], mu)))
-            ref_diff = mu_root(xr_merg, mus)
-            mu_bf = wrapper(ref_diff.load(), mus)
-            xr_merg['mu_bf'] = mu_bf
-            nw_ds = radar_from_gamma(d=xr_merg.diameter, dm=xr_merg.dm, nw=xr_merg.nw, mu=mu_bf,
-                                     d_d=xr_merg.d_d, prefix='mu_bf')
-            xr_merg = xr_merg.merge(nw_ds)
+            xr_mean = xr_merg.rolling(time=5).mean(skipna=True)
+            xr_merg = adding_mus(ds=xr_merg)
+            xr_mean = adding_mus(ds=xr_mean)
 
             if _bef is True:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins.zarr"
                 store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_5s.zarr"
                 xr_merg.to_zarr(store=store, consolidated=True)
-                try:
-                    xr_mean = xr_merg.rolling(time=5).mean(skipna=True)
-                    xr_mean.to_zarr(store=store2, consolidated=True)
-                except ZeroDivisionError as e :
-                    print(e)
-                    pass
-
+                xr_mean.to_zarr(store=store2, consolidated=True)
             else:
                 store = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
                 store2 = f"{path_data}/cloud_probes/zarr/combined_psd_{air}_{_lower}_{_upper}_{nbin}_bins_merged_5s.zarr"
                 xr_merg.to_zarr(store=store, consolidated=True)
-                try:
-                    xr_mean = xr_merg.rolling(time=5).mean(skipna=True)
-                    xr_mean.to_zarr(store=store2, consolidated=True)
-                except ZeroDivisionError as e:
-                    print(e)
-                    pass
+                xr_mean.to_zarr(store=store2, consolidated=True)
 
             del xr_merg, xr_mean
             print(f'done {nbin}')
