@@ -386,7 +386,7 @@ def get_add_data(aircraft: 'str', indexx) -> pd.DataFrame:
     else:
         str_db = f'{path_par}/p3b_merge.pkl'
         df_add = pd.read_pickle(str_db)
-        df_add = df_add.filter([' Total_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
+        df_add = df_add.filter([' Static_Air_Temp_YANG_MetNav', ' Dew_Point_YANG_MetNav',
                                 ' GPS_Altitude_YANG_MetNav', ' LWC_gm3_LAWSON',
                                 ' Vertical_Speed_YANG_MetNav', ' Relative_Humidity_YANG_MetNav',
                                 ' Roll_Angle_YANG_MetNav', ' Latitude_YANG_MetNav', ' Longitude_YANG_MetNav'])
