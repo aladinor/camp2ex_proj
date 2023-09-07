@@ -602,7 +602,7 @@ def adding_mus(ds):
 
 
 def main():
-    _bef = False
+    _bef = True
     aircraft = ['Lear', 'P3B']
     for air in aircraft:
         intervals = [600, 1000]
