@@ -345,11 +345,11 @@ def radar_calc(nd, _lower, _upper, mie=False):
         z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['T_mat_W'].values,
                                                                    axis='columns').mul(dsizes)
 
-    att_ku = (0.01 / np.log10(10)) * nd.mul(1e6).mul(backscatter['Ku_extc'].values,
+    att_ku = (0.01 / np.log(10)) * nd.mul(1e6).mul(backscatter['Ku_extc'].values,
                                                      axis='columns').mul(dsizes)
-    att_ka = (0.01 / np.log10(10)) * nd.mul(1e6).mul(backscatter['Ka_extc'].values,
+    att_ka = (0.01 / np.log(10)) * nd.mul(1e6).mul(backscatter['Ka_extc'].values,
                                                      axis='columns').mul(dsizes)
-    att_w = (0.01 / np.log10(10)) * nd.mul(1e6).mul(backscatter['W_extc'].values,
+    att_w = (0.01 / np.log(10)) * nd.mul(1e6).mul(backscatter['W_extc'].values,
                                                     axis='columns').mul(dsizes)
 
     df_radar = pd.concat([z_ku, z_ka, z_w, att_ku, att_ka, att_w], axis=1, keys=wvl, levels=[wvl])
