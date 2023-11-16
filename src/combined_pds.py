@@ -14,6 +14,7 @@ from pytmatrix.scatter import ext_xsect
 from pymiecoated import Mie
 from scipy.constants import c
 from re import split
+
 sys.path.insert(1, f"{os.path.abspath(os.path.join(os.path.abspath(''), '../'))}")
 from src.utils import get_pars_from_ini, make_dir
 
@@ -329,7 +330,7 @@ def radar_calc(nd, _lower, _upper, mie=False):
     ku_wvl = c / 14e9 * 1000
     ka_wvl = c / 35e9 * 1000
     w_wvl = c / 95e9 * 1000
-    wvl = ['z_Ku', 'z_Ka', 'z_W', 'A_Ku', 'A_Ka', 'A_W']
+    wvl = ['z_Ku', 'z_Ka', 'z_W', 'K_Ku', 'K_Ka', 'K_W']
     if mie:
         z_ku = (ku_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['Mie_Ku'].values,
                                                                      axis='columns').mul(dsizes)
@@ -345,14 +346,14 @@ def radar_calc(nd, _lower, _upper, mie=False):
         z_w = (w_wvl ** 4 / (np.pi ** 5 * 0.93)) * nd.mul(1e6).mul(backscatter['T_mat_W'].values,
                                                                    axis='columns').mul(dsizes)
 
-    att_ku = (0.01 / np.log(10)) * nd.mul(1e6).mul(backscatter['Ku_extc'].values,
-                                                     axis='columns').mul(dsizes)
-    att_ka = (0.01 / np.log(10)) * nd.mul(1e6).mul(backscatter['Ka_extc'].values,
-                                                     axis='columns').mul(dsizes)
-    att_w = (0.01 / np.log(10)) * nd.mul(1e6).mul(backscatter['W_extc'].values,
-                                                    axis='columns').mul(dsizes)
+    K_ku = (0.01 / np.log(10)) * (nd.mul(1e6).mul(backscatter['Ku_extc'].values,
+                                                  axis='columns').mul(dsizes)).sum(axis='columns')
+    K_ka = (0.01 / np.log(10)) * (nd.mul(1e6).mul(backscatter['Ka_extc'].values,
+                                                  axis='columns').mul(dsizes)).sum(axis='columns')
+    K_w = (0.01 / np.log(10)) * (nd.mul(1e6).mul(backscatter['W_extc'].values,
+                                                 axis='columns').mul(dsizes)).sum(axis='columns')
 
-    df_radar = pd.concat([z_ku, z_ka, z_w, att_ku, att_ka, att_w], axis=1, keys=wvl, levels=[wvl])
+    df_radar = pd.concat([z_ku, z_ka, z_w, K_ku, K_ka, K_w], axis=1, keys=wvl, levels=[wvl])
     return df_radar
 
 
@@ -446,7 +447,7 @@ def filter_by_bins(df, nbins=10, dt=None):
     df_cum = df_ones.cumsum(1).replace(0, np.nan)
     _reset = -df_cum[df.replace([-9.99, 0], np.nan).isnull()].fillna(method='pad', axis=1). \
         diff(axis=1).replace(0, np.nan).fillna(df_cum)
-    res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1) # where counter rest
+    res = df_ones.where(df.replace([-9.99, 0], np.nan).notnull(), _reset).cumsum(1)  # where counter rest
     _max = res[res > 0].max(axis=1)
     df['nbins'] = _max
     df = df[df['nbins'] >= nbins]
@@ -484,7 +485,7 @@ def ref_gamma(ds_gm, prefix, d_d, _lower=600, _upper=1000, mie=False, instrument
         ar = np.ones_like(ds_gm)
         backscatter = bck_extc_crss(ds_gm, instrument=instrument, _lower=_lower, _upper=_upper, ar=ar)
 
-    backscatter = backscatter.reset_index().drop(columns=['level_0', 'index']).\
+    backscatter = backscatter.reset_index().drop(columns=['level_0', 'index']). \
         assign(diameter=ds_gm.diameter).set_index('diameter').to_xarray()
     dsizes = d_d / 1000
     ku_wvl = c / 14e9 * 1000
@@ -539,7 +540,7 @@ def mu_retrieval(ds):
 
 
 def mu_root(ds, mus):
-    gm = norm_gamma(d=ds.diameter/1000, nw=ds.nw, dm=ds.dm, mu=mus)
+    gm = norm_gamma(d=ds.diameter / 1000, nw=ds.nw, dm=ds.dm, mu=mus)
     y = ds.psd * 1e6
     x = gm.astype(float)
     norm = (y - y.mean('diameter')) / y.std('diameter')
@@ -664,12 +665,9 @@ def main():
                     dbz_t_w=(["time"], 10 * np.log10(df_reflectivity['z_W'].sum(1))),
                     dfr=(["time"], 10 * np.log10(df_reflectivity['z_Ku'].sum(1)) -
                          10 * np.log10(df_reflectivity['z_Ka'].sum(1))),
-                    A_ku=(["time", "diameter"], df_reflectivity['A_Ku'].to_numpy()),
-                    A_ka=(["time", "diameter"], df_reflectivity['A_Ka'].to_numpy()),
-                    A_w=(["time", "diameter"], df_reflectivity['A_W'].to_numpy()),
-                    Att_ku=(["time"], 10 * np.log10(df_reflectivity['A_Ku'].sum(1))),
-                    Att_ka=(["time"], 10 * np.log10(df_reflectivity['A_Ka'].sum(1))),
-                    Att_w=(["time"], 10 * np.log10(df_reflectivity['A_W'].sum(1))),
+                    Att_ku=(["time"], df_reflectivity['K_Ku'].to_numpy()[:, 0]),
+                    Att_ka=(["time"], df_reflectivity['K_Ka'].to_numpy()[:, 0]),
+                    Att_w=(["time"], df_reflectivity['K_W'].to_numpy()[:, 0]),
                     nt=(["time"], params['nt'].to_numpy()[:, 0]),
                     lwc=(["time", "diameter"], params['lwc'].to_numpy()),
                     lwc_cum=(["time"], params['lwc'].sum(1).to_numpy()),
